@@ -153,16 +153,17 @@ def main(Params):
             model_ft = Lightning_Wrapper(model.teacher, Params['num_classes'][Dataset], 
                                                  log_dir = filename, label_names=Params['class_names'][Dataset])
         elif args.mode == 'distillation':
+            
             #Fine tune teacher on dataset
             teacher_checkpoint_callback = ModelCheckpoint(filename = 'best_model_teacher',mode='max',
                                                   monitor='val_accuracy')
             model_ft = Lightning_Wrapper(model.teacher, Params['num_classes'][Dataset], 
-                                                 log_dir = filename, label_names=Params['class_names'])
+                                                  log_dir = filename, label_names=Params['class_names'])
             
             #Train teacher
             print("Setting up teacher trainer...")
             trainer_teacher = Trainer(callbacks=[EarlyStopping(monitor='val_loss', patience=Params['patience']), teacher_checkpoint_callback,
-                                         TQDMProgressBar(refresh_rate=10)], 
+                                          TQDMProgressBar(refresh_rate=10)], 
                               max_epochs= Params['num_epochs'], enable_checkpointing = Params['save_results'], 
                               default_root_dir = filename,
                               logger=logger) 
@@ -190,7 +191,6 @@ def main(Params):
                                                                   strict=True)
             print("Teacher weights after training")
             print(best_teacher.model.fc_audioset.bias)
-    
             model.teacher = best_teacher.model
         
             #Remove feature extraction layers from PANN
@@ -218,7 +218,7 @@ def main(Params):
                                               monitor='val_accuracy')
         print("Checkpoint callback set up.")
 
-        # Print number of trainable parameters (if using ACE/Embeddding, only loss layer has params)
+        # Print number of trainable parameters
         num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         print("Number of parameters: %d" % (num_params))
 
@@ -247,23 +247,6 @@ def main(Params):
     average_val_acc = np.mean(best_val_accs)
     std_val_acc = np.std(best_val_accs)
     all_runs_accs.append(best_val_accs)
-
-    results_filename = f"Saved_Models/lightning/distillation/DeepShip/TDNN/Run_{Params['Splits'][Dataset]}/lightning_logs/Training/result.txt"
-    with open(results_filename, "a") as file:
-        file.write(f"Run_{Params['Splits'][Dataset]}\n")
-        file.write(f"Average of Best Validation Accuracy: {average_val_acc:.4f}\n")
-        file.write(f"Standard Deviation of Best Validation Accuracies: {std_val_acc:.4f}\n\n")
-
-    # Flatten the list of lists and compute overall statistics
-    flat_list = [acc for sublist in all_runs_accs for acc in sublist]
-    overall_avg_acc = np.mean(flat_list)
-    overall_std_acc = np.std(flat_list)
-    
-    summary_filename = f"Saved_Models/lightning/distillation/DeepShip/TDNN/summary_results.txt"
-    with open(summary_filename, "w") as file:
-        file.write(f"Overall Results Across All Runs for {Params['feature']}\n")
-        file.write(f"Overall Average of Best Validation Accuracies: {overall_avg_acc:.4f}\n")
-        file.write(f"Overall Standard Deviation of Best Validation Accuracies: {overall_std_acc:.4f}\n")
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Run histogram experiments for dataset')

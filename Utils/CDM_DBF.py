@@ -26,25 +26,25 @@ class CustomCDMLayer(nn.Module):
 
     def forward(self, x):
         device = x.device
-        self.H = self.H.to(device)
-        self.G = self.G.to(device)
-        self.sobel_horizontal = self.sobel_horizontal.to(device)
-        self.sobel_vertical = self.sobel_vertical.to(device)
+        # self.H = self.H.to(device)
+        # self.G = self.G.to(device)
+        # self.sobel_horizontal = self.sobel_horizontal.to(device)
+        # self.sobel_vertical = self.sobel_vertical.to(device)
         
-        x_copy = x.clone()
+        # x_copy = x.clone()
         laplacian_pyramid = []
         for _ in range(self.subband_level):
-            x_copy = x_copy.to(device)
-            self.H = self.H.to(device)
+            # x_copy = x_copy.to(device)
+            # self.H = self.H.to(device)
             
-            low_pass_result = F.conv2d(x_copy, self.H, padding=(0, 2), stride=1)
-            low_pass_result = low_pass_result.expand(-1, x_copy.shape[1], -1, -1)
+            low_pass_result = F.conv2d(x, self.H, padding=(0, 2), stride=1)
+            low_pass_result = low_pass_result.expand(-1, x.shape[1], -1, -1)
             low_pass_result_downsampled = F.avg_pool2d(low_pass_result, kernel_size=3, stride=1)
-            low_pass_result_upsampled = F.interpolate(low_pass_result_downsampled, size=x_copy.shape[-2:], mode='bilinear')
+            low_pass_result_upsampled = F.interpolate(low_pass_result_downsampled, size=x.shape[-2:], mode='bilinear')
             
-            laplacian = x_copy - low_pass_result_upsampled
+            laplacian = x - low_pass_result_upsampled
             laplacian_pyramid.append(laplacian.clone())  # Cloning
-            x_copy = low_pass_result_upsampled.clone()  # Cloning
+            x = low_pass_result_upsampled.clone()  # Cloning
     
         for level, laplacian in enumerate(laplacian_pyramid):
             level_dfb_subbands = []
@@ -76,9 +76,9 @@ class CustomCDMLayer(nn.Module):
     
         reconstructed_subbands = []
         for i in range(self.subband_level):
-            expanded_G = self.G.expand(laplacian_pyramid[i].shape[1], -1, -1, -1).to(device)
+            expanded_G = self.G.expand(laplacian_pyramid[i].shape[1], -1, -1, -1)
             filtered_subband = F.conv2d(laplacian_pyramid[i], expanded_G, padding=2, stride=1)
-            upsampled_subband = F.interpolate(filtered_subband, size=x_copy.shape[-2:], mode='bilinear')
+            upsampled_subband = F.interpolate(filtered_subband, size=x.shape[-2:], mode='bilinear')
             
             min_val = upsampled_subband.min()
             max_val = upsampled_subband.max()
