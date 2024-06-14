@@ -9,7 +9,7 @@ import pytorch_lightning as pl
 class DeepShipSegments(Dataset):
     def __init__(self, parent_folder, train_split=0.7, val_test_split=0.5,
                  partition='train', random_seed=42, shuffle=False, transform=None, 
-                 target_transform=None):
+                 target_transform=None, norm_function=None):
         self.parent_folder = parent_folder
         self.folder_lists = {'train': [], 'test': [], 'val': []}
         self.train_split = train_split
@@ -19,7 +19,7 @@ class DeepShipSegments(Dataset):
         self.shuffle = shuffle
         self.target_transform = target_transform
         self.random_seed = random_seed
-        self.norm_function = None
+        self.norm_function = norm_function
         self.class_mapping = {'Cargo': 0, 'Passengership': 1, 'Tanker': 2, 'Tug': 3}
         self._prepare_data()
 
@@ -77,6 +77,27 @@ class DeepShipSegments(Dataset):
 
         return signal, label, idx
 
+    def compute_global_min_max(self):
+        global_min = float('inf')
+        global_max = float('-inf')
+        for file_path, label in self.segment_lists['train']:
+            try:
+                sr, signal = wavfile.read(file_path, mmap=False)
+                signal = signal.astype(np.float32)
+                file_min = np.min(signal)
+                file_max = np.max(signal)
+                if file_min < global_min:
+                    global_min = file_min
+                if file_max > global_max:
+                    global_max = file_max
+            except Exception as e:
+                raise RuntimeError(f"Error reading file {file_path}: {e}")
+        return global_min, global_max
+
+    def set_norm_function(self, global_min, global_max):
+        self.norm_function = lambda x: (x - global_min) / (global_max - global_min)
+
+
 class DeepShipDataModule(pl.LightningDataModule):
     def __init__(self, data_dir, batch_size, num_workers, pin_memory, 
                  train_split=0.7, val_test_split=0.5, random_seed=42, shuffle=False):
@@ -107,18 +128,19 @@ class DeepShipDataModule(pl.LightningDataModule):
                                                 val_test_split=self.val_test_split, 
                                                 random_seed=self.random_seed, 
                                                 shuffle=self.shuffle)
-            # self.norm_function = self._get_normalization_function(self.train_dataset)
-            self.train_dataset.norm_function = self.norm_function
-            self.val_dataset.norm_function = self.norm_function
+            
+            global_min, global_max = self.train_dataset.compute_global_min_max()
+            self.norm_function = lambda x: (x - global_min) / (global_max - global_min)
+            self.train_dataset.set_norm_function(global_min, global_max)
+            self.val_dataset.set_norm_function(global_min, global_max)
 
         if stage == 'test' or stage is None:
-            self.test_dataset = DeepShipSegments(self.data_dir, partition='test', train_split=self.train_split, val_test_split=self.val_test_split, random_seed=self.random_seed, shuffle=self.shuffle)
-            self.test_dataset.norm_function = self.norm_function
-
-    #This does not work on Winows
-    def _get_normalization_function(self, dataset):
-        # Placeholder function to compute normalization function from dataset
-        return lambda x: (x - x.min()) / (x.max() - x.min())
+            self.test_dataset = DeepShipSegments(self.data_dir, partition='test', 
+                                                 train_split=self.train_split, 
+                                                 val_test_split=self.val_test_split, 
+                                                 random_seed=self.random_seed, 
+                                                 shuffle=self.shuffle)
+            self.test_dataset.set_norm_function(global_min, global_max)
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset, batch_size=self.batch_size['train'], 

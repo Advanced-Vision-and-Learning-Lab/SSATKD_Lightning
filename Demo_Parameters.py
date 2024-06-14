@@ -188,14 +188,20 @@ def Parameters(args):
     
     ######## ONLY CHANGE PARAMETERS ABOVE ########
     if feature_extraction:
-        mode = 'Feature_Extraction'
+        method = 'Feature_Extraction'
     else:
-        mode = 'Fine_Tuning'
+        method = 'Fine_Tuning'
+    if use_pretrained:
+        model = 'Pretrained'
+    else: 
+        model = 'Scratch'
+        
+    
     
     #Location of texture datasets
     Data_dirs = {'DeepShip': './Datasets/DeepShip/Segments/'}
-    segment_length = {'DeepShip': 3}
-    sample_rate ={'DeepShip': 16000}
+    segment_length = 3
+    sample_rate =32000
     
     class_names = {'FashionMNIST': ['T-shirt/top', 'Trouser', 'Pullover', 'Dress', 'Coat',
                                  'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle boot'],
@@ -212,6 +218,7 @@ def Parameters(args):
     temperature = args.temperature
     alpha = args.alpha
     mode = args.mode
+
     
     #Number of classes in each dataset
     num_classes = {'DeepShip': 4}
@@ -247,10 +254,10 @@ def Parameters(args):
     Params = {'save_results': save_results,'folder': folder,
                           'histogram': histogram,'Dataset': Dataset, 'data_dir': data_dir,'segment_length':segment_length,'sample_rate':sample_rate,
                           'optimizer': optimizer,'HPRC':HPRC,
-                          'num_workers': num_workers, 'mode': mode,'lr': lr,
+                          'num_workers': num_workers, 'method': method,'lr': lr,
                           'step_size': step_size,'class_names':class_names,
                           'gamma': gamma, 'batch_size' : batch_size, 
-                          'num_epochs': num_epochs, 
+                          'num_epochs': num_epochs, 'model':model,
                           'padding': padding, 
                           'stride': stride, 'kernel_size': kernel_size,
                           'in_channels': in_channels,'in_channels_t': in_channels_t,'out_channels': out_channels,'out_channels_t':out_channels_t,
@@ -258,7 +265,7 @@ def Parameters(args):
                           'normalize_bins': normalize_bins,'parallel': parallel,
                           'numBins': numBins,'feat_map_size': feat_map_size,
                           'student_model': student_model, 'teacher_model':teacher_model,'num_classes': num_classes, 
-                          'Splits': Splits, 'feature_extraction': feature_extraction,
+                          'Splits': Splits, 'feature_extraction': feature_extraction,'use_pretrained': use_pretrained,
                           'hist_model': Hist_model_name, 'hist_model_teacher':Hist_model_name_teacher,'use_pretrained': use_pretrained,
                           'add_bn': add_bn, 'pin_memory': pin_memory, 'scale': scale,
                           'TSNE_visual': TSNE_visual,

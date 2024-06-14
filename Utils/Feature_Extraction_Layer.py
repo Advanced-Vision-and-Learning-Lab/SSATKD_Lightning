@@ -114,7 +114,6 @@ class Feature_Extraction_Layer(nn.Module):
                          'CQT': self.CQT, 'VQT': self.VQT}
 
     def forward(self, x):
-        # pdb.set_trace()
         x = self.features[self.input_feature](x)
         x = x.repeat(1, self.num_channels, 1, 1)
         if self.training:

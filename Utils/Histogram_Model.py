@@ -23,16 +23,6 @@ class HistRes(nn.Module):
         self.fc = None
         self.dropout = None
         
-        # # Additional custom layers
-        # self.custom_cdm_layer = CustomCDMLayer(subband_level=subband_level, num_classes=num_class, in_channels=16)
-        # self.custom_cdm_layer.to(device)
-        # self.custom_ditm_layer = QCO_2d(scale=1, level_num=8)
-        # self.custom_ditm_layer.to(device)
-        
-        
-        
-        
-    
         #Default to use resnet18, otherwise use Resnet50
         #Defines feature extraction backbone model and redefines linear layer
         if model_name == 'resnet18':
@@ -117,7 +107,6 @@ class HistRes(nn.Module):
             x = self.backbone.trunk_output(x)
             
         elif self.model_name == 'TDNN':
-            # pdb.set_trace()
             x = self.backbone.conv1(x)
             x = self.backbone.nonlinearity(x)
             x = self.backbone.maxpool1(x)

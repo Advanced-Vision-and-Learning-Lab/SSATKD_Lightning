@@ -23,15 +23,79 @@ def generate_filename(Network_parameters,split):
     # Generate filename for saving results
 
     #Add ability to only train output layer or entire teacher
+    if Network_parameters['mode'] == 'student':
+
+        if Network_parameters['feature_extraction'] :
+            filename = '{}/{}/{}/{}/{}/Run_{}/'.format(Network_parameters['folder'],
+                                                        Network_parameters['mode'], 
+                                                        Network_parameters['method'],
+                                                        Network_parameters['Dataset'],
+                                                        Network_parameters['student_model'],
+                                                        split+1)
+        else:
+            filename = '{}/{}/{}/{}/{}/Run_{}/'.format(Network_parameters['folder'],
+                                                        Network_parameters['mode'], 
+                                                        Network_parameters['method'],
+                                                        Network_parameters['Dataset'],
+                                                        Network_parameters['student_model'],
+                                                        split+1)
+            
+        
     
-    # Baseline model
-    filename = '{}/{}/{}/{}_{}/Run_{}/'.format(Network_parameters['folder'],
-                                                Network_parameters['mode'], 
-                                                Network_parameters['Dataset'],
-                                                Network_parameters['student_model'],
-                                                Network_parameters['teacher_model'],
-                                                split+1)
-    
+    elif Network_parameters['mode'] == 'teacher':
+        if Network_parameters['use_pretrained']: 
+            if Network_parameters['feature_extraction'] :
+                filename = '{}/{}/{}/{}/{}/{}/Run_{}/'.format(Network_parameters['folder'],
+                                                            Network_parameters['mode'], 
+                                                            Network_parameters['model'],
+                                                            Network_parameters['method'],
+                                                            Network_parameters['Dataset'],
+                                                            Network_parameters['teacher_model'],
+                                                            split+1)
+            else:
+                filename = '{}/{}/{}/{}/{}/{}/Run_{}/'.format(Network_parameters['folder'],
+                                                            Network_parameters['mode'], 
+                                                            Network_parameters['model'],
+                                                            Network_parameters['method'],
+                                                            Network_parameters['Dataset'],
+                                                            Network_parameters['teacher_model'],
+                                                            split+1)
+        else:
+            if Network_parameters['feature_extraction'] :
+                filename = '{}/{}/{}/{}/{}/Run_{}/'.format(Network_parameters['folder'],
+                                                            Network_parameters['mode'], 
+                                                            Network_parameters['method'],
+                                                            Network_parameters['Dataset'],
+                                                            Network_parameters['teacher_model'],
+                                                            split+1)
+            else:
+                filename = '{}/{}/{}/{}/{}/Run_{}/'.format(Network_parameters['folder'],
+                                                            Network_parameters['mode'], 
+                                                            Network_parameters['method'],
+                                                            Network_parameters['Dataset'],
+                                                            Network_parameters['teacher_model'],
+                                                            split+1)           
+    else: #KD
+
+        if Network_parameters['feature_extraction'] :
+            filename = '{}/{}/{}/{}/{}_{}/Run_{}/'.format(Network_parameters['folder'],
+                                                        Network_parameters['mode'], 
+                                                        Network_parameters['method'],
+                                                        Network_parameters['Dataset'],
+                                                        Network_parameters['student_model'],
+                                                        Network_parameters['teacher_model'],
+                                                        split+1)
+        else:
+            filename = '{}/{}/{}/{}/{}_{}/Run_{}/'.format(Network_parameters['folder'],
+                                                        Network_parameters['mode'], 
+                                                        Network_parameters['method'],
+                                                        Network_parameters['Dataset'],
+                                                        Network_parameters['student_model'],
+                                                        Network_parameters['teacher_model'],
+                                                        split+1)
+        
+
+        
     # Create directory if it does not exist
     if not os.path.exists(filename):
         os.makedirs(filename)

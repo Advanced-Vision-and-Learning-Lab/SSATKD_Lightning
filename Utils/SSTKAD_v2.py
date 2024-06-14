@@ -27,7 +27,7 @@ class SSTKAD(nn.Module):
     
         #TBD, add 1x1 convolution
         #Read channels from second layer of teacher autonomously
-        self.feature_reduce = nn.Conv2d(64, self.struct_layer.in_channels,1)
+        self.feature_reduce = nn.Conv2d(64, self.struct_layer.out_channels,1)
         
     def set_parameter_requires_grad(self):
         
@@ -48,6 +48,15 @@ class SSTKAD(nn.Module):
         self.teacher.logmel_extractor = nn.Identity()
         self.teacher.spec_augmenter = nn.Identity()
         self.teacher.bn0 = nn.Identity()
+        
+        #Freeze teacher network
+        self.set_parameter_requires_grad()
+        
+    def remove_TIMM_feature_extractor(self):
+        
+        #Remove feature extract layers from PANN after intial fine tuning
+        #Remove feature layers from PANNs
+        self.teacher.feature_extraction = nn.Identity()
         
         #Freeze teacher network
         self.set_parameter_requires_grad()
@@ -74,6 +83,10 @@ class SSTKAD(nn.Module):
         
         stats_feats_student = self.stats_layer(feats_student)
         stats_feats_teacher = self.stats_layer(feats_teacher)
+        
+        # sstkad_dict = {'struct_feats_student':struct_feats_student, 'struct_feats_teacher':struct_feats_teacher,
+        #                'stats_feats_student':stats_feats_student,'stats_feats_teacher':stats_feats_teacher,
+        #                'output_student':output_student, 'output_teacher':output_teacher}
         
         
         return struct_feats_student, struct_feats_teacher, stats_feats_student, stats_feats_teacher, output_student, output_teacher

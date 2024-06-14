@@ -25,17 +25,10 @@ class CustomCDMLayer(nn.Module):
                                                          [-1, 0, 1]], dtype=torch.float32).unsqueeze(0).expand(in_channels, -1, -1, -1).transpose(0, 1))
 
     def forward(self, x):
-        device = x.device
-        # self.H = self.H.to(device)
-        # self.G = self.G.to(device)
-        # self.sobel_horizontal = self.sobel_horizontal.to(device)
-        # self.sobel_vertical = self.sobel_vertical.to(device)
-        
-        # x_copy = x.clone()
+       
         laplacian_pyramid = []
         for _ in range(self.subband_level):
-            # x_copy = x_copy.to(device)
-            # self.H = self.H.to(device)
+
             
             low_pass_result = F.conv2d(x, self.H, padding=(0, 2), stride=1)
             low_pass_result = low_pass_result.expand(-1, x.shape[1], -1, -1)

@@ -6,6 +6,9 @@ Train and evaluate models for experiments on datasets
 """
 import argparse
 
+import torch
+import torch.nn as nn
+
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
@@ -28,6 +31,7 @@ from DeepShipDataModules import DeepShipDataModule
 from Utils.RBFHistogramPooling import HistogramLayer
 import pdb
 from datetime import timedelta # test this
+from Datasets.Get_preprocessed_data import process_data
 
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
@@ -111,6 +115,7 @@ def main(Params):
         # Decide which data module to use
         #*********Use smaller training percentage for debugging**********
         if Dataset == 'DeepShip':
+            process_data(sample_rate=Params['sample_rate'], segment_length=Params['segment_length'])
             data_module = DeepShipDataModule(Params['data_dir'],Params['batch_size'],
                                              Params['num_workers'], Params['pin_memory'],
                                              train_split=0.05)
@@ -129,10 +134,10 @@ def main(Params):
         print("Initializing the model...")
         model = initialize_model(mode, student_model, teacher_model, 
                                                 Params['in_channels'][student_model], num_feature_maps,
-                                                use_pretrained=Params['feature_extraction'],
+                                                use_pretrained=Params['use_pretrained'],
                                                 num_classes = num_classes,
                                                 feature_extract=Params['feature_extraction'],
-                                                channels=Params['TDNN_feats'],
+                                                channels=Params['TDNN_feats'][Dataset],
                                                 histogram=Params['histogram'],
                                                 histogram_layer=histogram_layer,
                                                 parallel=Params['parallel'],
@@ -143,7 +148,7 @@ def main(Params):
                                                 window_length=(Params['window_length'][Dataset]), 
                                                 hop_length=(Params['hop_length'][Dataset]),
                                                 input_feature = Params['feature'],
-                                                sample_rate=Params['sample_rate'][Dataset]) 
+                                                sample_rate=Params['sample_rate']) 
         
         
         # Wrap model in Lightning Module
@@ -154,53 +159,49 @@ def main(Params):
                                                  log_dir = filename, label_names=Params['class_names'][Dataset])
         elif args.mode == 'distillation':
             
-            #Fine tune teacher on dataset
-            teacher_checkpoint_callback = ModelCheckpoint(filename = 'best_model_teacher',mode='max',
-                                                  monitor='val_accuracy')
-            model_ft = Lightning_Wrapper(model.teacher, Params['num_classes'][Dataset], 
-                                                  log_dir = filename, label_names=Params['class_names'])
+            # #Fine tune teacher on dataset
+            # teacher_checkpoint_callback = ModelCheckpoint(filename = 'best_model_teacher',mode='max',
+            #                                       monitor='val_accuracy')
+            # model_ft = Lightning_Wrapper(model.teacher, Params['num_classes'][Dataset], 
+            #                                       log_dir = filename, label_names=Params['class_names'])
             
-            #Train teacher
-            print("Setting up teacher trainer...")
-            trainer_teacher = Trainer(callbacks=[EarlyStopping(monitor='val_loss', patience=Params['patience']), teacher_checkpoint_callback,
-                                          TQDMProgressBar(refresh_rate=10)], 
-                              max_epochs= Params['num_epochs'], enable_checkpointing = Params['save_results'], 
-                              default_root_dir = filename,
-                              logger=logger) 
+            # #Train teacher
+            # print("Setting up teacher trainer...")
+            # trainer_teacher = Trainer(callbacks=[EarlyStopping(monitor='val_loss', patience=Params['patience']), teacher_checkpoint_callback,
+            #                               TQDMProgressBar(refresh_rate=10)], 
+            #                   max_epochs= Params['num_epochs'], enable_checkpointing = Params['save_results'], 
+            #                   default_root_dir = filename,
+            #                   logger=logger) 
             
-            #Print weights before training
-            print("Teacher weights before training")
-            print(model_ft.model.fc_audioset.bias)
             
-            print("Teacher trainer set up.")
+            # print("Teacher trainer set up.")
             
-            # Start fitting the model
-            print('Training teacher model...')
+            # # Start fitting the model
+            # print('Training teacher model...')
             
-            trainer_teacher.fit(model_ft, train_dataloaders = train_loader, 
-                                val_dataloaders = val_loader)
-            print('Training completed.')
+            # trainer_teacher.fit(model_ft, train_dataloaders = train_loader, 
+            #                     val_dataloaders = val_loader)
+            # print('Training completed.')
             
-            #Pass fine-tuned teacher to knowledge distillation model
-            sub_dir = generate_filename(Params, split)
-            checkpt_path = os.path.join(sub_dir, 'lightning_logs/Training/checkpoints/best_model_teacher.ckpt')             
-            best_teacher = Lightning_Wrapper.load_from_checkpoint(checkpt_path,
-                                                                  hparams_file=os.path.join(sub_dir, 'lightning_logs/Training/checkpoints/hparams.yaml'),
-                                                                  model=model.teacher,
-                                                                  num_classes = num_classes, 
-                                                                  strict=True)
-            print("Teacher weights after training")
-            print(best_teacher.model.fc_audioset.bias)
-            model.teacher = best_teacher.model
+            # #Pass fine-tuned teacher to knowledge distillation model
+            # sub_dir = generate_filename(Params, split)
+            # checkpt_path = os.path.join(sub_dir, 'lightning_logs/Training/checkpoints/best_model_teacher.ckpt')             
+            # best_teacher = Lightning_Wrapper.load_from_checkpoint(checkpt_path,
+            #                                                       hparams_file=os.path.join(sub_dir, 'lightning_logs/Training/checkpoints/hparams.yaml'),
+            #                                                       model=model.teacher,
+            #                                                       num_classes = num_classes, 
+            #                                                       strict=True)
+            # model.teacher = best_teacher.model
         
-            #Remove feature extraction layers from PANN
+            #Remove feature extraction layers from PANN/TIMM
             model.remove_PANN_feature_extractor()
+            model.remove_TIMM_feature_extractor()
             
             model_ft = Lightning_Wrapper_KD(model, num_classes=Params['num_classes'][Dataset],  
                                          log_dir = filename, label_names=Params['class_names'],
                                          Params=Params)
         elif args.mode == 'student':
-            model_ft = Lightning_Wrapper(model.student,num_classes=Params['num_classes'][Dataset],  
+            model_ft = Lightning_Wrapper(nn.Sequential(model.feature_extractor,model.student),num_classes=Params['num_classes'][Dataset],  
                                          log_dir = filename, label_names=Params['class_names'])
             
         else:
@@ -224,7 +225,7 @@ def main(Params):
 
         # Train and evaluate
         print("Setting up trainer...")
-        trainer = Trainer(callbacks=[EarlyStopping(monitor='val_loss', patience=Params['patience']), checkpoint_callback,TQDMProgressBar(refresh_rate=1000)], 
+        trainer = Trainer(callbacks=[EarlyStopping(monitor='val_loss', patience=Params['patience']), checkpoint_callback,TQDMProgressBar(refresh_rate=10)], 
                           max_epochs= Params['num_epochs'], enable_checkpointing = Params['save_results'], 
                           default_root_dir = filename,
                           logger=logger) 
@@ -257,7 +258,7 @@ def parse_args():
     parser.add_argument('--histogram', default=True, action=argparse.BooleanOptionalAction, help='Flag to use histogram model or baseline global average pooling (GAP), --no-histogram (GAP) or --histogram')
     parser.add_argument('--data_selection', type=int, default=0, help='Dataset selection: See Demo_Parameters for full list of datasets')
     parser.add_argument('-numBins', type=int, default=16, help='Number of bins for histogram layer. Recommended values are 4, 8 and 16. (default: 16)')
-    parser.add_argument('--feature_extraction', default=False, action=argparse.BooleanOptionalAction, help='Flag for feature extraction. False, train whole model. True, only update fully connected and histogram layers parameters (default: True)')
+    parser.add_argument('--feature_extraction', default=True, action=argparse.BooleanOptionalAction, help='Flag for feature extraction. False, train whole model. True, only update fully connected and histogram layers parameters (default: True)')
     parser.add_argument('--use_pretrained', default=True, action=argparse.BooleanOptionalAction, help='Flag to use pretrained model from ImageNet or train from scratch (default: True)')
     parser.add_argument('--train_batch_size', type=int, default=16, help='input batch size for training (default: 128)')
     parser.add_argument('--val_batch_size', type=int, default=8, help='input batch size for validation (default: 512)')

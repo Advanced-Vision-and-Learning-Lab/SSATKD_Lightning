@@ -39,6 +39,10 @@ plt.ioff()
 def main(Params):    
     # Get the arguments
     args = parse_args()
+    
+
+    if Params['HPRC']:
+        torch.set_float32_matmul_precision('medium')
 
     # Name of dataset
     Dataset = Params['Dataset']
@@ -46,9 +50,6 @@ def main(Params):
     # Model(s) to be used
     student_model = Params['student_model'] 
     teacher_model = Params['teacher_model']
-    
-        # Get the label names
-    label_names = Params['class_names']
 
     # Number of classes in dataset
     num_classes = Params['num_classes'][Dataset]
@@ -58,6 +59,11 @@ def main(Params):
     numBins = Params['numBins']
     num_feature_maps = Params['out_channels'][student_model]
     mode = Params['mode']
+
+    
+        # Get the label names
+    label_names = Params['class_names']
+
     
     # Local area of feature map after histogram layer
     feat_map_size = Params['feat_map_size']
@@ -111,14 +117,14 @@ def main(Params):
             os.remove(f)
         print("Logger set up.")
 
-        # Initialize the histogram model for this run
+
         print("Initializing the model...")
-        student_ft, teacher_ft, input_size, feature_extraction_layer, feature_extraction_layer_t = initialize_model(mode, student_model, teacher_model, 
+        model = initialize_model(mode, student_model, teacher_model, 
                                                 Params['in_channels'][student_model], num_feature_maps,
-                                                use_pretrained=Params['feature_extraction'],
+                                                use_pretrained=Params['use_pretrained'],
                                                 num_classes = num_classes,
                                                 feature_extract=Params['feature_extraction'],
-                                                channels=Params['TDNN_feats'],
+                                                channels=Params['TDNN_feats'][Dataset],
                                                 histogram=Params['histogram'],
                                                 histogram_layer=histogram_layer,
                                                 parallel=Params['parallel'],
@@ -129,8 +135,7 @@ def main(Params):
                                                 window_length=(Params['window_length'][Dataset]), 
                                                 hop_length=(Params['hop_length'][Dataset]),
                                                 input_feature = Params['feature'],
-                                                sample_rate=Params['sample_rate'][Dataset],
-                                                ) 
+                                                sample_rate=Params['sample_rate']) 
         print("Model Initialized.")
         
         # Load model
@@ -139,24 +144,17 @@ def main(Params):
             checkpoint_path=checkpt_path, # TODO: Decide how to deal with multiple versions
             # map_location = 
             hparams_file=os.path.join(sub_dir, 'lightning_logs/Training/checkpoints/hparams.yaml'),
-            model = student_ft, num_classes = num_classes, strict=True, logger=logger,
+            model = model.student, num_classes = num_classes, strict=True, logger=logger,
             log_dir = filename, label_names = label_names, stage='test')
         print('Model initialized as Lightning Module...')
 
-        # Create training and validation dataloaders
-        print("Initializing Datasets and Dataloaders...")
         # Decide which data module to use
-        if Dataset == 'FashionMNIST':
-            data_module = FashionMNIST_DataModule(Params['resize_size'], input_size, Params['data_dir'], Params['batch_size'], Params['num_workers'])
-            print('FashionMNIST DataModule Initialized')
-        elif Dataset == 'CIFAR10':
-            data_module = CIFAR10_DataModule(Params['resize_size'], input_size, Params['data_dir'], Params['batch_size'], Params['num_workers'])
-            print('CIFAR10 DataModule Initialized')
-        elif Dataset == 'sugarcane_damage_usa':
-            data_module = sugarcane_damage_usa_DataModule(Params['resize_size'], input_size, Params['data_dir'], Params['batch_size'], Params['num_workers'])
-            print('sugarcane_damage_usa DataModule Initialized')
-        elif Dataset == 'DeepShip':
-            data_module = DeepShipDataModule(Params['data_dir'],Params['batch_size'], Params['num_workers'], Params['pin_memory'])
+        #*********Use smaller training percentage for debugging**********
+        if Dataset == 'DeepShip':
+            process_data(sample_rate=Params['sample_rate'], segment_length=Params['segment_length'])
+            data_module = DeepShipDataModule(Params['data_dir'],Params['batch_size'],
+                                             Params['num_workers'], Params['pin_memory'],
+                                             train_split=0.05)
         else:
             raise ValueError('{} Dataset not found'.format(Dataset))
             
