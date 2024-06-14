@@ -22,11 +22,14 @@ import pdb
 def generate_filename(Network_parameters,split):
     # Generate filename for saving results
 
+    #Add ability to only train output layer or entire teacher
+    
     # Baseline model
-    filename = '{}/{}/{}/{}/Run_{}/'.format(Network_parameters['folder'],
+    filename = '{}/{}/{}/{}_{}/Run_{}/'.format(Network_parameters['folder'],
                                                 Network_parameters['mode'], 
                                                 Network_parameters['Dataset'],
-                                                Network_parameters['Model_name'],
+                                                Network_parameters['student_model'],
+                                                Network_parameters['teacher_model'],
                                                 split+1)
     
     # Create directory if it does not exist

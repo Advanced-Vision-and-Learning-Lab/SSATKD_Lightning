@@ -3,6 +3,9 @@ Saved_Models/
 aggregated_results.json
 Confusion_Matrices/
 
+#Ignore Weights
+PANN_Weights/
+
 # Ignore the venv
 venv/
 
@@ -16,4 +19,5 @@ Datasets/__pycache__/
 Datasets/CIFAR10/
 Datasets/FashionMNIST/
 Datasets/sugarcane_damage_usa/
+Datasets/DeepShip/
 

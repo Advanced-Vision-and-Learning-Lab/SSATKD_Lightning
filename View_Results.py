@@ -12,6 +12,7 @@ import os
 import argparse
 from Utils.Lightning_Wrapper import Lightning_Wrapper
 from DataModules import FashionMNIST_DataModule, CIFAR10_DataModule, sugarcane_damage_usa_DataModule
+from DeepShipDataModules import DeepShipDataModule
 import glob
 
 ## PyTorch Lightning
@@ -30,6 +31,7 @@ from Demo_Parameters import Parameters
 from Utils.Network_functions import initialize_model
 from Utils.Save_Results import generate_filename, aggregate_tensorboard_logs, aggregate_and_visualize_confusion_matrices
 from Utils.Generate_TSNE_visual import Generate_TSNE_visual
+from Utils.RBFHistogramPooling import HistogramLayer
 
 
 plt.ioff()
@@ -42,28 +44,53 @@ def main(Params):
     Dataset = Params['Dataset']
     
     # Model(s) to be used
-    model_name = Params['Model_name'] 
-
-    # Get the label names
+    student_model = Params['student_model'] 
+    teacher_model = Params['teacher_model']
+    
+        # Get the label names
     label_names = Params['class_names']
-
-    # Get the phases to run TSNE on
-    phases = args.phases
-
-    # Number of runs and/or splits for dataset
-    NumRuns = Params['Splits'][Dataset]
 
     # Number of classes in dataset
     num_classes = Params['num_classes'][Dataset]
     
+    # Number of runs and/or splits for dataset
+    numRuns = Params['Splits'][Dataset]
+    numBins = Params['numBins']
+    num_feature_maps = Params['out_channels'][student_model]
+    mode = Params['mode']
     
-    for split in range(0, NumRuns):
+    # Local area of feature map after histogram layer
+    feat_map_size = Params['feat_map_size']
+    
+        # Get the phases to run TSNE on
+    phases = args.phases
+            
+    
+
+    for split in range(0, numRuns):
+        #Set same random seed based on split and fairly compare
+        #each approach
         torch.manual_seed(split)
         np.random.seed(split)
         np.random.seed(split)
         torch.cuda.manual_seed(split)
         torch.cuda.manual_seed_all(split)
         torch.manual_seed(split)
+        best_val_accs = []
+        all_runs_accs = []
+        # Keep track of the bins and widths as these values are updated each
+        # epoch
+        saved_bins = np.zeros((Params['num_epochs'] + 1,
+                               numBins * int(num_feature_maps / (feat_map_size * numBins))))
+        saved_widths = np.zeros((Params['num_epochs'] + 1,
+                                 numBins * int(num_feature_maps / (feat_map_size * numBins))))
+        
+
+        histogram_layer = HistogramLayer(int(num_feature_maps / (feat_map_size * numBins)),
+                                         Params['kernel_size'][student_model],
+                                         num_bins=numBins, stride=Params['stride'],
+                                         normalize_count=Params['normalize_count'],
+                                         normalize_bins=Params['normalize_bins'])
         
         # Get a filename for saving results
         print("Initializing / Finding the model path...")   
@@ -86,9 +113,24 @@ def main(Params):
 
         # Initialize the histogram model for this run
         print("Initializing the model...")
-        model_ft, input_size = initialize_model(model_name, channels=Params['channels'] , 
-                                                use_pretrained=False, 
-                                                num_classes = num_classes) 
+        student_ft, teacher_ft, input_size, feature_extraction_layer, feature_extraction_layer_t = initialize_model(mode, student_model, teacher_model, 
+                                                Params['in_channels'][student_model], num_feature_maps,
+                                                use_pretrained=Params['feature_extraction'],
+                                                num_classes = num_classes,
+                                                feature_extract=Params['feature_extraction'],
+                                                channels=Params['TDNN_feats'],
+                                                histogram=Params['histogram'],
+                                                histogram_layer=histogram_layer,
+                                                parallel=Params['parallel'],
+                                                add_bn=Params['add_bn'],
+                                                scale=Params['scale'],
+                                                feat_map_size=feat_map_size,
+                                                TDNN_feats=(Params['TDNN_feats'][Dataset]),
+                                                window_length=(Params['window_length'][Dataset]), 
+                                                hop_length=(Params['hop_length'][Dataset]),
+                                                input_feature = Params['feature'],
+                                                sample_rate=Params['sample_rate'][Dataset],
+                                                ) 
         print("Model Initialized.")
         
         # Load model
@@ -97,7 +139,7 @@ def main(Params):
             checkpoint_path=checkpt_path, # TODO: Decide how to deal with multiple versions
             # map_location = 
             hparams_file=os.path.join(sub_dir, 'lightning_logs/Training/checkpoints/hparams.yaml'),
-            model = model_ft, num_classes = num_classes, strict=True, logger=logger,
+            model = student_ft, num_classes = num_classes, strict=True, logger=logger,
             log_dir = filename, label_names = label_names, stage='test')
         print('Model initialized as Lightning Module...')
 
@@ -113,6 +155,8 @@ def main(Params):
         elif Dataset == 'sugarcane_damage_usa':
             data_module = sugarcane_damage_usa_DataModule(Params['resize_size'], input_size, Params['data_dir'], Params['batch_size'], Params['num_workers'])
             print('sugarcane_damage_usa DataModule Initialized')
+        elif Dataset == 'DeepShip':
+            data_module = DeepShipDataModule(Params['data_dir'],Params['batch_size'], Params['num_workers'], Params['pin_memory'])
         else:
             raise ValueError('{} Dataset not found'.format(Dataset))
             
@@ -185,39 +229,33 @@ def main(Params):
     print('Aggregated results saved...')
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Generate results from experiments')
-    parser.add_argument('--save_results', default=True, action=argparse.BooleanOptionalAction,
-                        help='Save results of experiments(default: True)')
-    parser.add_argument('--folder', type=str, default='Saved_Models',
-                        help='Location to save models')
-    parser.add_argument('--data_selection', type=int, default=1,
-                        help='Dataset selection:  1:FashionMNIST, 2:CIFAR10, 3:sugarcane_damage_usa')
-    parser.add_argument('--feature_extraction', default=True, action=argparse.BooleanOptionalAction,
-                        help='Flag for feature extraction. False, train whole model. True, only update fully connected/encoder parameters (default: True)')
-    parser.add_argument('--use_pretrained', default=True, action=argparse.BooleanOptionalAction,
-                        help='Flag to use pretrained model from ImageNet or train from scratch (default: True)')
-    parser.add_argument('--train_batch_size', type=int, default=16,
-                        help='input batch size for training (default: 128)')
-    parser.add_argument('--val_batch_size', type=int, default=64,
-                        help='input batch size for validation (default: 512)')
-    parser.add_argument('--test_batch_size', type=int, default=128,
-                        help='input batch size for testing (default: 256)')
-    parser.add_argument('--num_workers', type=int, default=0,
-                        help='Number of workers for dataloader (default: 0)')
-    parser.add_argument('--num_epochs', type=int, default=10,
-                        help='Number of epochs to train each model for (default: 50)')
-    parser.add_argument('--resize_size', type=int, default=256,
-                        help='Resize the image before center crop. (default: 256)')
-    parser.add_argument('--lr', type=float, default=0.001,
-                        help='learning rate (default: 0.001)')
-    parser.add_argument('--model', type=str, default='simple_cnn',
-                        help='backbone architecture to use (default: simple_cnn)')
+    parser = argparse.ArgumentParser(description='Run histogram experiments for dataset')
+    parser.add_argument('--save_results', default=True, action=argparse.BooleanOptionalAction, help='Save results of experiments (default: True)')
+    parser.add_argument('--folder', type=str, default='Saved_Models/lightning/', help='Location to save models')
+    parser.add_argument('--student_model', type=str, default='TDNN', help='Select baseline model architecture')
+    parser.add_argument('--teacher_model', type=str, default='CNN_14', help='Select baseline model architecture')
+    parser.add_argument('--histogram', default=True, action=argparse.BooleanOptionalAction, help='Flag to use histogram model or baseline global average pooling (GAP), --no-histogram (GAP) or --histogram')
+    parser.add_argument('--data_selection', type=int, default=0, help='Dataset selection: See Demo_Parameters for full list of datasets')
+    parser.add_argument('-numBins', type=int, default=16, help='Number of bins for histogram layer. Recommended values are 4, 8 and 16. (default: 16)')
+    parser.add_argument('--feature_extraction', default=False, action=argparse.BooleanOptionalAction, help='Flag for feature extraction. False, train whole model. True, only update fully connected and histogram layers parameters (default: True)')
+    parser.add_argument('--use_pretrained', default=True, action=argparse.BooleanOptionalAction, help='Flag to use pretrained model from ImageNet or train from scratch (default: True)')
+    parser.add_argument('--train_batch_size', type=int, default=4, help='input batch size for training (default: 128)')
+    parser.add_argument('--val_batch_size', type=int, default=4, help='input batch size for validation (default: 512)')
+    parser.add_argument('--test_batch_size', type=int, default=4, help='input batch size for testing (default: 256)')
+    parser.add_argument('--num_epochs', type=int, default=1, help='Number of epochs to train each model for (default: 50)')
+    parser.add_argument('--resize_size', type=int, default=256, help='Resize the image before center crop. (default: 256)')
+    parser.add_argument('--lr', type=float, default=1e-3, help='learning rate (default: 0.001)')
+    parser.add_argument('--use-cuda', default=True, action=argparse.BooleanOptionalAction, help='enables CUDA training')
+    parser.add_argument('--audio_feature', type=str, default='Log_Mel_Spectrogram', help='Audio feature for extraction')
+    parser.add_argument('--optimizer', type=str, default='Adam', help='Select optimizer')
+    parser.add_argument('--patience', type=int, default=8, help='Number of epochs to train each model for (default: 50)')
+    parser.add_argument('--temperature', type=float, default=2.0, help='Temperature for knowledge distillation')
+    parser.add_argument('--alpha', type=float, default=0.5, help='Alpha for knowledge distillation')
     parser.add_argument('--phases', type=list, default=['test'],
-                        help='phases to run TSNE on (default: test only, otherwise train,val,test or any combination of the three)')
-    parser.add_argument('--TSNE', default=False, action=argparse.BooleanOptionalAction,
-                        help='Flag to run TSNE on the data (default: False)')
-    parser.add_argument('--patience', type=int, default=10,
-                      help='Number of epochs to stop training based on validation loss (default: 10)')
+                      help='phases to run TSNE on (default: test only, otherwise train,val,test or any combination of the three)')
+    parser.add_argument('--mode', type=str, choices=['student', 'teacher', 'distillation'], default='distillation', help='Mode to run the script in: student, teacher, distillation (default: distillation)')
+    parser.add_argument('--HPRC', default=False, action=argparse.BooleanOptionalAction,
+                    help='Flag to run on HPRC (default: False)')
     args = parser.parse_args()
     return args
 
