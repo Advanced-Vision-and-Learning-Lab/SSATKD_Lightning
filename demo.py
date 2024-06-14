@@ -109,8 +109,11 @@ def main(Params):
         print("Initializing Datasets and Dataloaders...")
         
         # Decide which data module to use
+        #*********Use smaller training percentage for debugging**********
         if Dataset == 'DeepShip':
-            data_module = DeepShipDataModule(Params['data_dir'],Params['batch_size'], Params['num_workers'], Params['pin_memory'])
+            data_module = DeepShipDataModule(Params['data_dir'],Params['batch_size'],
+                                             Params['num_workers'], Params['pin_memory'],
+                                             train_split=0.05)
         else:
             raise ValueError('{} Dataset not found'.format(Dataset))
             
@@ -140,8 +143,7 @@ def main(Params):
                                                 window_length=(Params['window_length'][Dataset]), 
                                                 hop_length=(Params['hop_length'][Dataset]),
                                                 input_feature = Params['feature'],
-                                                sample_rate=Params['sample_rate'][Dataset],
-                                                ) 
+                                                sample_rate=Params['sample_rate'][Dataset]) 
         
         
         # Wrap model in Lightning Module
@@ -165,6 +167,9 @@ def main(Params):
                               default_root_dir = filename,
                               logger=logger) 
             
+            #Print weights before training
+            print("Teacher weights before training")
+            print(model_ft.model.fc_audioset.bias)
             
             print("Teacher trainer set up.")
             
@@ -176,14 +181,18 @@ def main(Params):
             print('Training completed.')
             
             #Pass fine-tuned teacher to knowledge distillation model
-            pdb.set_trace()
             sub_dir = generate_filename(Params, split)
             checkpt_path = os.path.join(sub_dir, 'lightning_logs/Training/checkpoints/best_model_teacher.ckpt')             
-            filename = generate_filename(Params,split)
-            best_teacher = model_ft.load_from_checkpoint(checkpoint_path=checkpt_path)
+            best_teacher = Lightning_Wrapper.load_from_checkpoint(checkpt_path,
+                                                                  hparams_file=os.path.join(sub_dir, 'lightning_logs/Training/checkpoints/hparams.yaml'),
+                                                                  model=model.teacher,
+                                                                  num_classes = num_classes, 
+                                                                  strict=True)
+            print("Teacher weights after training")
+            print(best_teacher.model.fc_audioset.bias)
     
-            model.teacher = best_teacher
-            
+            model.teacher = best_teacher.model
+        
             #Remove feature extraction layers from PANN
             model.remove_PANN_feature_extractor()
             
@@ -267,9 +276,9 @@ def parse_args():
     parser.add_argument('-numBins', type=int, default=16, help='Number of bins for histogram layer. Recommended values are 4, 8 and 16. (default: 16)')
     parser.add_argument('--feature_extraction', default=False, action=argparse.BooleanOptionalAction, help='Flag for feature extraction. False, train whole model. True, only update fully connected and histogram layers parameters (default: True)')
     parser.add_argument('--use_pretrained', default=True, action=argparse.BooleanOptionalAction, help='Flag to use pretrained model from ImageNet or train from scratch (default: True)')
-    parser.add_argument('--train_batch_size', type=int, default=32, help='input batch size for training (default: 128)')
-    parser.add_argument('--val_batch_size', type=int, default=4, help='input batch size for validation (default: 512)')
-    parser.add_argument('--test_batch_size', type=int, default=4, help='input batch size for testing (default: 256)')
+    parser.add_argument('--train_batch_size', type=int, default=16, help='input batch size for training (default: 128)')
+    parser.add_argument('--val_batch_size', type=int, default=8, help='input batch size for validation (default: 512)')
+    parser.add_argument('--test_batch_size', type=int, default=8, help='input batch size for testing (default: 256)')
     parser.add_argument('--num_epochs', type=int, default=1, help='Number of epochs to train each model for (default: 50)')
     parser.add_argument('--resize_size', type=int, default=256, help='Resize the image before center crop. (default: 256)')
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate (default: 0.001)')

@@ -73,46 +73,6 @@ def set_parameter_requires_grad(model, feature_extracting):
 #              num_params = sum(p.numel() for p in model_ft.parameters() if p.requires_grad)
 #              print("Number of parameters after feature extraction: %d" % (num_params))
 #          input_size = model_ft.default_cfg['input_size'][1]
-         
-#     # If the model is a custom model implementation
-#     # In this example the custom model is a simple 3 layer CNN
-#     elif model_name == 'simple_cnn':
-#         model_ft = Simple_CNN(channels, num_classes)
-#         input_size = 224
-#     elif model_name == 'TDNN':
-#         model_ft = HistRes(histogram_layer, parallel=parallel,
-#                            model_name=model_name,add_bn=add_bn, scale=scale,
-#                            pretrained=use_pretrained, TDNN_feats=1)  
-#         set_parameter_requires_grad_other_models(model_ft.backbone, feature_extract)
-#         reduced_dim = int((out_channels / feat_map_size) / (histogram_layer.numBins))
-#         if (channels == reduced_dim):
-#             model_ft.histogram_layer = histogram_layer
-#         else:
-#             conv_reduce = nn.Conv2d(channels, reduced_dim, (1, 1))
-#             model_ft.histogram_layer = nn.Sequential(conv_reduce, histogram_layer)
-
-#         if parallel:
-#             num_ftrs = model_ft.fc.in_features * 2
-#         else:
-#             num_ftrs = model_ft.fc.in_features
-
-#         model_ft.fc = nn.Linear(num_ftrs, num_classes)
-#         input_size = 224
-#     else:
-#         print("Invalid model name, exiting...")
-#         exit()
-
-#     #If TDNN model, only use 1 feature channel
-#     if model_name == "TDNN":
-#         RGB = False
-    
-#     #Intialize feature layer
-#     feature_layer = Feature_Extraction_Layer(input_feature=input_feature, window_length=window_length,  window_size=512, hop_size=160, 
-#         mel_bins=64, fmin=50, fmax=8000, classes_num=527,
-#         hop_length=hop_length, sample_rate=sample_rate, RGB = RGB )
-
-#     #Return baseline model, desired input size, and feature layer
-#     return model_ft, input_size, feature_layer
 
 def initialize_model(mode,student_model,teacher_model, in_channels, out_channels, use_pretrained=False, num_classes = 1, feature_extract=False,
                       channels = 3,histogram=True, histogram_layer=None,parallel=True, add_bn=True, scale=5,

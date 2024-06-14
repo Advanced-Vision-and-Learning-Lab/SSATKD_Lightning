@@ -78,7 +78,8 @@ class DeepShipSegments(Dataset):
         return signal, label, idx
 
 class DeepShipDataModule(pl.LightningDataModule):
-    def __init__(self, data_dir, batch_size, num_workers, pin_memory, train_split=0.7, val_test_split=0.5, random_seed=42, shuffle=False):
+    def __init__(self, data_dir, batch_size, num_workers, pin_memory, 
+                 train_split=0.7, val_test_split=0.5, random_seed=42, shuffle=False):
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
@@ -96,9 +97,17 @@ class DeepShipDataModule(pl.LightningDataModule):
 
     def setup(self, stage=None):
         if stage == 'fit' or stage is None:
-            self.train_dataset = DeepShipSegments(self.data_dir, partition='train', train_split=self.train_split, val_test_split=self.val_test_split, random_seed=self.random_seed, shuffle=self.shuffle)
-            self.val_dataset = DeepShipSegments(self.data_dir, partition='val', train_split=self.train_split, val_test_split=self.val_test_split, random_seed=self.random_seed, shuffle=self.shuffle)
-            self.norm_function = self._get_normalization_function(self.train_dataset)
+            self.train_dataset = DeepShipSegments(self.data_dir, partition='train', 
+                                                  train_split=self.train_split,
+                                                  val_test_split=self.val_test_split, 
+                                                  random_seed=self.random_seed, 
+                                                  shuffle=self.shuffle)
+            self.val_dataset = DeepShipSegments(self.data_dir, partition='val', 
+                                                train_split=self.train_split, 
+                                                val_test_split=self.val_test_split, 
+                                                random_seed=self.random_seed, 
+                                                shuffle=self.shuffle)
+            # self.norm_function = self._get_normalization_function(self.train_dataset)
             self.train_dataset.norm_function = self.norm_function
             self.val_dataset.norm_function = self.norm_function
 
@@ -106,15 +115,22 @@ class DeepShipDataModule(pl.LightningDataModule):
             self.test_dataset = DeepShipSegments(self.data_dir, partition='test', train_split=self.train_split, val_test_split=self.val_test_split, random_seed=self.random_seed, shuffle=self.shuffle)
             self.test_dataset.norm_function = self.norm_function
 
+    #This does not work on Winows
     def _get_normalization_function(self, dataset):
         # Placeholder function to compute normalization function from dataset
         return lambda x: (x - x.min()) / (x.max() - x.min())
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.batch_size['train'], shuffle=True, num_workers=self.num_workers, pin_memory=self.pin_memory)
+        return DataLoader(self.train_dataset, batch_size=self.batch_size['train'], 
+                          shuffle=True, num_workers=self.num_workers, 
+                          pin_memory=self.pin_memory, persistent_workers=True)
 
     def val_dataloader(self):
-        return DataLoader(self.val_dataset, batch_size=self.batch_size['val'], shuffle=False, num_workers=self.num_workers, pin_memory=self.pin_memory)
+        return DataLoader(self.val_dataset, batch_size=self.batch_size['val'], 
+                          shuffle=False, num_workers=self.num_workers, 
+                          pin_memory=self.pin_memory, persistent_workers=True)
 
     def test_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=self.batch_size['test'], shuffle=False, num_workers=self.num_workers, pin_memory=self.pin_memory)
+        return DataLoader(self.test_dataset, batch_size=self.batch_size['test'], 
+                          shuffle=False, num_workers=self.num_workers, 
+                          pin_memory=self.pin_memory)
