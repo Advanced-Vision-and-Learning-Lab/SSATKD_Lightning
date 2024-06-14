@@ -1,0 +1,19 @@
+# Ignore saved model
+Saved_Models/
+aggregated_results.json
+Confusion_Matrices/
+
+# Ignore the venv
+venv/
+
+# Ignore the logs
+lightning_logs/
+
+#Ignore Datasets
+*.zip
+*.pyc
+Datasets/__pycache__/
+Datasets/CIFAR10/
+Datasets/FashionMNIST/
+Datasets/sugarcane_damage_usa/
+
