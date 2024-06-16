@@ -59,12 +59,9 @@ def initialize_model(mode,student_model,teacher_model, in_channels, out_channels
                       hop_length=64, input_feature='STFT', sample_rate=16000, RGB=False,
                       R=1, measure='norm', p=2.0, similarity=True):
     
-    model_ft = None
-    teacher_model_ft = None
-    input_size = 0
-    RGB = False
-    
-    
+    feature_layer = Feature_Extraction_Layer(input_feature=input_feature, window_length=window_length,  window_size=512, hop_size=160, 
+        mel_bins=64, fmin=50, fmax=8000, classes_num=527,
+        hop_length=hop_length, sample_rate=sample_rate, RGB = RGB )
     
 
     if mode == 'student' or mode == 'distillation':
@@ -90,11 +87,6 @@ def initialize_model(mode,student_model,teacher_model, in_channels, out_channels
 
             model_ft.fc = nn.Linear(num_ftrs, num_classes)
 
-                           
-                
-    feature_layer = Feature_Extraction_Layer(input_feature=input_feature, window_length=window_length,  window_size=512, hop_size=160, 
-        mel_bins=64, fmin=50, fmax=8000, classes_num=527,
-        hop_length=hop_length, sample_rate=sample_rate, RGB = RGB )
 
     if mode == 'teacher' or mode == 'distillation':
         if teacher_model == "CNN_14":
@@ -114,7 +106,6 @@ def initialize_model(mode,student_model,teacher_model, in_channels, out_channels
                                          fmax=8000, classes_num=527)
                 
             #Create feature extaction layer for PANN networks 
-            # feature_layer.bn = teacher_model_ft.bn0
             feature_layer.bn = nn.BatchNorm2d(teacher_model_ft.bn0.num_features)
             
         
@@ -136,8 +127,7 @@ def initialize_model(mode,student_model,teacher_model, in_channels, out_channels
             set_parameter_requires_grad(teacher_model_ft, feature_extract)
             num_ftrs = teacher_model_ft.fc_audioset.in_features
             teacher_model_ft.fc_audioset = nn.Linear(num_ftrs, num_classes)
-            input_size = 224
-            
+        
         elif teacher_model == 'MobileNetV1':
             #feature parameters from repo
             if use_pretrained: #Pretrained on AudioSet

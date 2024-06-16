@@ -5,7 +5,11 @@ from .modulate2 import modulate2
 import pyximport
 import numpy as np
 pyximport.install(setup_args={'include_dirs': np.get_include()})
-from .resamp4c import resamp4c
+#Issue if C compiler not found
+try:
+    from .resamp4c import resamp4c
+except:
+    from .resamp4 import resamp4c
 import torch
 from torch.nn import functional as F
 from scipy.ndimage import zoom

@@ -10,7 +10,6 @@ import torch
 import torch.nn as nn
 
 import numpy as np
-import torch
 import matplotlib.pyplot as plt
 import glob
 
@@ -23,14 +22,11 @@ import os
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.callbacks import ModelCheckpoint, TQDMProgressBar
 from lightning import Trainer
-#from pytorch_lightning.strategies import DDPStrategy
 from lightning.pytorch.loggers import TensorBoardLogger
-from DataModules import FashionMNIST_DataModule, CIFAR10_DataModule, sugarcane_damage_usa_DataModule
 from DeepShipDataModules import DeepShipDataModule
 
 from Utils.RBFHistogramPooling import HistogramLayer
 import pdb
-from datetime import timedelta # test this
 from Datasets.Get_preprocessed_data import process_data
 
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
@@ -76,13 +72,6 @@ def main(Params):
         torch.manual_seed(split)
         best_val_accs = []
         all_runs_accs = []
-        # Keep track of the bins and widths as these values are updated each
-        # epoch
-        saved_bins = np.zeros((Params['num_epochs'] + 1,
-                               numBins * int(num_feature_maps / (feat_map_size * numBins))))
-        saved_widths = np.zeros((Params['num_epochs'] + 1,
-                                 numBins * int(num_feature_maps / (feat_map_size * numBins))))
-        
 
         histogram_layer = HistogramLayer(int(num_feature_maps / (feat_map_size * numBins)),
                                          Params['kernel_size'][student_model],
@@ -209,9 +198,6 @@ def main(Params):
       
         print("Model Initialized as Lightning Module.")
         
-        # Save the initial values for bins and widths of histogram layer
-        # Set optimizer for model
-        #print()
 
         # Create a checkpoint callback to save best model based on val accuracy
         print("Setting up checkpoint callback...")

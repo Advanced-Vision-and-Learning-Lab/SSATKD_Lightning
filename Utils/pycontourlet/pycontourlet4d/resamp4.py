@@ -1,3 +1,10 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Jun 15 14:32:14 2024
+
+@author: jpeeples
+"""
+
 import numpy as np
 import numpy.ma as ma
 
