@@ -118,7 +118,7 @@ def main(Params):
             process_data(sample_rate=Params['sample_rate'], segment_length=Params['segment_length'])
             data_module = DeepShipDataModule(Params['data_dir'],Params['batch_size'],
                                              Params['num_workers'], Params['pin_memory'],
-                                             train_split=0.05)
+                                             train_split=0.7, val_split=0.1, test_split=0.2)
         else:
             raise ValueError('{} Dataset not found'.format(Dataset))
             
@@ -155,43 +155,44 @@ def main(Params):
         print("Initializing Lightning Module...")
         
         if args.mode == 'teacher':
+            pdb.set_trace()
             model_ft = Lightning_Wrapper(model.teacher, Params['num_classes'][Dataset], 
                                                  log_dir = filename, label_names=Params['class_names'][Dataset])
         elif args.mode == 'distillation':
             
-            # #Fine tune teacher on dataset
-            # teacher_checkpoint_callback = ModelCheckpoint(filename = 'best_model_teacher',mode='max',
-            #                                       monitor='val_accuracy')
-            # model_ft = Lightning_Wrapper(model.teacher, Params['num_classes'][Dataset], 
-            #                                       log_dir = filename, label_names=Params['class_names'])
+            #Fine tune teacher on dataset
+            teacher_checkpoint_callback = ModelCheckpoint(filename = 'best_model_teacher',mode='max',
+                                                  monitor='val_accuracy')
+            model_ft = Lightning_Wrapper(model.teacher, Params['num_classes'][Dataset], 
+                                                  log_dir = filename, label_names=Params['class_names'])
             
-            # #Train teacher
-            # print("Setting up teacher trainer...")
-            # trainer_teacher = Trainer(callbacks=[EarlyStopping(monitor='val_loss', patience=Params['patience']), teacher_checkpoint_callback,
-            #                               TQDMProgressBar(refresh_rate=10)], 
-            #                   max_epochs= Params['num_epochs'], enable_checkpointing = Params['save_results'], 
-            #                   default_root_dir = filename,
-            #                   logger=logger) 
+            #Train teacher
+            print("Setting up teacher trainer...")
+            trainer_teacher = Trainer(callbacks=[EarlyStopping(monitor='val_loss', patience=Params['patience']), teacher_checkpoint_callback,
+                                          TQDMProgressBar(refresh_rate=10)], 
+                              max_epochs= Params['num_epochs'], enable_checkpointing = Params['save_results'], 
+                              default_root_dir = filename,
+                              logger=logger) 
             
             
-            # print("Teacher trainer set up.")
+            print("Teacher trainer set up.")
             
-            # # Start fitting the model
-            # print('Training teacher model...')
+            # Start fitting the model
+            print('Training teacher model...')
             
-            # trainer_teacher.fit(model_ft, train_dataloaders = train_loader, 
-            #                     val_dataloaders = val_loader)
-            # print('Training completed.')
+            trainer_teacher.fit(model_ft, train_dataloaders = train_loader, 
+                                val_dataloaders = val_loader)
+            print('Training completed.')
             
-            # #Pass fine-tuned teacher to knowledge distillation model
-            # sub_dir = generate_filename(Params, split)
-            # checkpt_path = os.path.join(sub_dir, 'lightning_logs/Training/checkpoints/best_model_teacher.ckpt')             
-            # best_teacher = Lightning_Wrapper.load_from_checkpoint(checkpt_path,
-            #                                                       hparams_file=os.path.join(sub_dir, 'lightning_logs/Training/checkpoints/hparams.yaml'),
-            #                                                       model=model.teacher,
-            #                                                       num_classes = num_classes, 
-            #                                                       strict=True)
-            # model.teacher = best_teacher.model
+            #Pass fine-tuned teacher to knowledge distillation model
+            sub_dir = generate_filename(Params, split)
+            checkpt_path = os.path.join(sub_dir, 'lightning_logs/Training/checkpoints/best_model_teacher.ckpt')             
+            best_teacher = Lightning_Wrapper.load_from_checkpoint(checkpt_path,
+                                                                  hparams_file=os.path.join(sub_dir, 'lightning_logs/Training/checkpoints/hparams.yaml'),
+                                                                  model=model.teacher,
+                                                                  num_classes = num_classes, 
+                                                                  strict=True)
+            model.teacher = best_teacher.model
         
             #Remove feature extraction layers from PANN/TIMM
             model.remove_PANN_feature_extractor()
@@ -243,27 +244,27 @@ def main(Params):
 
         print('**********Run ' + str(split + 1) + ' ' + student_model + ' Finished**********')
     
-        best_val_accs.append(checkpoint_callback.best_model_score.item())
+    #     best_val_accs.append(checkpoint_callback.best_model_score.item())
 
-    average_val_acc = np.mean(best_val_accs)
-    std_val_acc = np.std(best_val_accs)
-    all_runs_accs.append(best_val_accs)
+    # average_val_acc = np.mean(best_val_accs)
+    # std_val_acc = np.std(best_val_accs)
+    # all_runs_accs.append(best_val_accs)
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Run histogram experiments for dataset')
     parser.add_argument('--save_results', default=True, action=argparse.BooleanOptionalAction, help='Save results of experiments (default: True)')
-    parser.add_argument('--folder', type=str, default='Saved_Models/KD_Test/', help='Location to save models')
+    parser.add_argument('--folder', type=str, default='Saved_Models/loss/', help='Location to save models')
     parser.add_argument('--student_model', type=str, default='TDNN', help='Select baseline model architecture')
     parser.add_argument('--teacher_model', type=str, default='CNN_14', help='Select baseline model architecture')
     parser.add_argument('--histogram', default=True, action=argparse.BooleanOptionalAction, help='Flag to use histogram model or baseline global average pooling (GAP), --no-histogram (GAP) or --histogram')
     parser.add_argument('--data_selection', type=int, default=0, help='Dataset selection: See Demo_Parameters for full list of datasets')
     parser.add_argument('-numBins', type=int, default=16, help='Number of bins for histogram layer. Recommended values are 4, 8 and 16. (default: 16)')
-    parser.add_argument('--feature_extraction', default=True, action=argparse.BooleanOptionalAction, help='Flag for feature extraction. False, train whole model. True, only update fully connected and histogram layers parameters (default: True)')
+    parser.add_argument('--feature_extraction', default=False, action=argparse.BooleanOptionalAction, help='Flag for feature extraction. False, train whole model. True, only update fully connected and histogram layers parameters (default: True)')
     parser.add_argument('--use_pretrained', default=True, action=argparse.BooleanOptionalAction, help='Flag to use pretrained model from ImageNet or train from scratch (default: True)')
     parser.add_argument('--train_batch_size', type=int, default=16, help='input batch size for training (default: 128)')
     parser.add_argument('--val_batch_size', type=int, default=8, help='input batch size for validation (default: 512)')
     parser.add_argument('--test_batch_size', type=int, default=8, help='input batch size for testing (default: 256)')
-    parser.add_argument('--num_epochs', type=int, default=1, help='Number of epochs to train each model for (default: 50)')
+    parser.add_argument('--num_epochs', type=int, default=10, help='Number of epochs to train each model for (default: 50)')
     parser.add_argument('--resize_size', type=int, default=256, help='Resize the image before center crop. (default: 256)')
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate (default: 0.001)')
     parser.add_argument('--use-cuda', default=True, action=argparse.BooleanOptionalAction, help='enables CUDA training')

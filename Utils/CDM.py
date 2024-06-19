@@ -43,6 +43,6 @@ class CDM(nn.Module):
                 #Resize feature to same size as scale 1
                 feature = nn.functional.interpolate(feature, size=spatial_size, 
                                                     mode="bilinear", align_corners=False)
-                features = torch.cat([features, feature],dim=1)
+                #features = torch.cat([features, feature],dim=1)
     
         return features

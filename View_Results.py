@@ -10,7 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import argparse
-from Utils.Lightning_Wrapper import Lightning_Wrapper
+from Utils.Lightning_Wrapper import Lightning_Wrapper,Lightning_Wrapper_KD
 from DataModules import FashionMNIST_DataModule, CIFAR10_DataModule, sugarcane_damage_usa_DataModule
 from DeepShipDataModules import DeepShipDataModule
 import glob
@@ -119,7 +119,7 @@ def main(Params):
 
 
         print("Initializing the model...")
-        model = initialize_model(mode, student_model, teacher_model, 
+        model_ft = initialize_model(mode, student_model, teacher_model, 
                                                 Params['in_channels'][student_model], num_feature_maps,
                                                 use_pretrained=Params['use_pretrained'],
                                                 num_classes = num_classes,
@@ -140,18 +140,36 @@ def main(Params):
         
         # Load model
         print('Initializing model as Lightning Module...')
-        model = Lightning_Wrapper.load_from_checkpoint( # TODO: Implement map parameter since this is likely useful
-            checkpoint_path=checkpt_path, # TODO: Decide how to deal with multiple versions
-            # map_location = 
-            hparams_file=os.path.join(sub_dir, 'lightning_logs/Training/checkpoints/hparams.yaml'),
-            model = model.student, num_classes = num_classes, strict=True, logger=logger,
-            log_dir = filename, label_names = label_names, stage='test')
+        
+        if args.mode == 'teacher':
+            model = Lightning_Wrapper.load_from_checkpoint(checkpt_path,
+                                                                  hparams_file=os.path.join(sub_dir, 'lightning_logs/Training/checkpoints/hparams.yaml'),
+                                                                  model=model_ft.teacher,
+                                                                  num_classes = num_classes, 
+                                                                  strict=True, stage='test')
+        elif args.mode == 'distillation':
+            #pdb.set_trace()
+            model = Lightning_Wrapper_KD.load_from_checkpoint(checkpt_path,
+                                                                  hparams_file=os.path.join(sub_dir, 'lightning_logs/Training/checkpoints/hparams.yaml'),
+                                                                  model=model_ft.teacher,
+                                                                  num_classes = num_classes, 
+                                                                  strict=False, stage='test')            
+        elif args.mode == 'student':
+            model = Lightning_Wrapper.load_from_checkpoint(checkpt_path,
+                                                                  hparams_file=os.path.join(sub_dir, 'lightning_logs/Training/checkpoints/hparams.yaml'),
+                                                                  model=model.student,
+                                                                  num_classes = num_classes, 
+                                                                  strict=True, stage='test')
+        else:
+            raise RuntimeError('{} not implemented'.format(args.mode))
+      
+        print("Model Initialized as Lightning Module.")
+        
         print('Model initialized as Lightning Module...')
 
         # Decide which data module to use
         #*********Use smaller training percentage for debugging**********
         if Dataset == 'DeepShip':
-            process_data(sample_rate=Params['sample_rate'], segment_length=Params['segment_length'])
             data_module = DeepShipDataModule(Params['data_dir'],Params['batch_size'],
                                              Params['num_workers'], Params['pin_memory'],
                                              train_split=0.05)
@@ -229,17 +247,17 @@ def main(Params):
 def parse_args():
     parser = argparse.ArgumentParser(description='Run histogram experiments for dataset')
     parser.add_argument('--save_results', default=True, action=argparse.BooleanOptionalAction, help='Save results of experiments (default: True)')
-    parser.add_argument('--folder', type=str, default='Saved_Models/lightning/', help='Location to save models')
+    parser.add_argument('--folder', type=str, default='Saved_Models/KD_Test/', help='Location to save models')
     parser.add_argument('--student_model', type=str, default='TDNN', help='Select baseline model architecture')
     parser.add_argument('--teacher_model', type=str, default='CNN_14', help='Select baseline model architecture')
     parser.add_argument('--histogram', default=True, action=argparse.BooleanOptionalAction, help='Flag to use histogram model or baseline global average pooling (GAP), --no-histogram (GAP) or --histogram')
     parser.add_argument('--data_selection', type=int, default=0, help='Dataset selection: See Demo_Parameters for full list of datasets')
     parser.add_argument('-numBins', type=int, default=16, help='Number of bins for histogram layer. Recommended values are 4, 8 and 16. (default: 16)')
-    parser.add_argument('--feature_extraction', default=False, action=argparse.BooleanOptionalAction, help='Flag for feature extraction. False, train whole model. True, only update fully connected and histogram layers parameters (default: True)')
+    parser.add_argument('--feature_extraction', default=True, action=argparse.BooleanOptionalAction, help='Flag for feature extraction. False, train whole model. True, only update fully connected and histogram layers parameters (default: True)')
     parser.add_argument('--use_pretrained', default=True, action=argparse.BooleanOptionalAction, help='Flag to use pretrained model from ImageNet or train from scratch (default: True)')
-    parser.add_argument('--train_batch_size', type=int, default=4, help='input batch size for training (default: 128)')
-    parser.add_argument('--val_batch_size', type=int, default=4, help='input batch size for validation (default: 512)')
-    parser.add_argument('--test_batch_size', type=int, default=4, help='input batch size for testing (default: 256)')
+    parser.add_argument('--train_batch_size', type=int, default=16, help='input batch size for training (default: 128)')
+    parser.add_argument('--val_batch_size', type=int, default=8, help='input batch size for validation (default: 512)')
+    parser.add_argument('--test_batch_size', type=int, default=8, help='input batch size for testing (default: 256)')
     parser.add_argument('--num_epochs', type=int, default=1, help='Number of epochs to train each model for (default: 50)')
     parser.add_argument('--resize_size', type=int, default=256, help='Resize the image before center crop. (default: 256)')
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate (default: 0.001)')

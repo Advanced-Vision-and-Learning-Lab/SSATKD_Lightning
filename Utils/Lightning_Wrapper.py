@@ -17,9 +17,27 @@ from Utils.Loss_function import Get_total_loss
 import csv
 import os
 import pdb
+import matplotlib.pyplot as plt
 
 
-
+def plot_feature_maps(feature_maps, title):
+    num_feature_maps = feature_maps.shape[1]
+    size = feature_maps.shape[-1]
+    cols = 8
+    rows = num_feature_maps // cols + 1
+    fig, axs = plt.subplots(rows, cols, figsize=(15, 15))
+    for i in range(rows):
+        for j in range(cols):
+            idx = i * cols + j
+            if idx < num_feature_maps:
+                ax = axs[i, j]
+                feature_map = feature_maps[0, idx].cpu().numpy()
+                ax.imshow(feature_map, cmap='viridis')
+                ax.axis('off')
+            else:
+                axs[i, j].axis('off')
+    plt.suptitle(title)
+    plt.show()
 class Lightning_Wrapper(L.LightningModule):
     def __init__(self, model, num_classes, optimizer=optim.Adam, learning_rate=1e-3,
                  scheduler=None, criterion=nn.CrossEntropyLoss(), log_dir=None, 
@@ -81,7 +99,7 @@ class Lightning_Wrapper(L.LightningModule):
 
     def training_step(self, batch, batch_idx):
         signals, labels, idx = batch
-        _, outputs = self.model(signals)
+        _, outputs= self.model(signals) 
         loss = self.criterion(outputs, labels.long())
 
         accuracy = getattr(self, 'train_accuracy')(outputs, labels)
@@ -92,7 +110,7 @@ class Lightning_Wrapper(L.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         signals, labels, idx = batch
-        _, outputs = self.model(signals)
+        _, outputs= self.model(signals)
         loss = self.criterion(outputs, labels.long())
         accuracy = getattr(self, 'val_accuracy')(outputs, labels)
         self.log('val_accuracy', accuracy, on_step=False, on_epoch=True)
@@ -221,11 +239,12 @@ class Lightning_Wrapper_KD(L.LightningModule):
         self.test_preds = []
         self.test_labels = []
         
-        # Knowledge distillation parameters
-        self.temperature = Params['temperature']
-        self.alpha = Params['alpha']
+        # # Knowledge distillation parameters
+        # self.temperature = Params['temperature']
+        # self.alpha = Params['alpha']
         
     def forward(self, x):
+        pdb.set_trace()
        
         struct_feats_student, struct_feats_teacher, stats_feats_student, stats_feats_teacher, output_student, output_teacher = self.model(x)
         
@@ -255,10 +274,22 @@ class Lightning_Wrapper_KD(L.LightningModule):
                                                                                                   output_teacher, output_student, classification_loss)                  
      
         accuracy = getattr(self, 'train_accuracy')(output_student, labels)
+        # Log accuracy and loss
         self.log('train_accuracy', accuracy, on_step=False, on_epoch=True)
         self.log('train_loss', loss, on_step=False, on_epoch=True)
-
+        self.log('classification_loss', classification_loss, on_step=False, on_epoch=True)
+        self.log('distillation_loss', distillation_loss, on_step=False, on_epoch=True)
+        self.log('struct_loss', struct_loss, on_step=False, on_epoch=True)
+        self.log('stats_loss', stats_loss, on_step=False, on_epoch=True)
+        
+        #         # Visualize feature maps at a specific interval
+        # # if batch_idx % 100 == 0:  # Visualize every 100 batches
+        # plot_feature_maps(struct_feats_student, 'Structural Features - Student')
+        # plot_feature_maps(struct_feats_teacher, 'Structural Features - Teacher')
+        
         return loss
+
+
 
     def validation_step(self, batch, batch_idx):
         signals, labels, idx = batch
@@ -281,14 +312,14 @@ class Lightning_Wrapper_KD(L.LightningModule):
     def test_step(self, batch, batch_idx):
         signals, labels, idx = batch
         features = self.feature_layer(signals)
-        _, outputs = self.model(features)
-        loss = self.criterion(outputs, labels.long())
+        struct_feats_student, struct_feats_teacher, stats_feats_student, stats_feats_teacher, output_student, output_teacher  = self.model(features)
+        loss = self.criterion(output_student, labels.long())
 
         self.log('test_loss', loss, on_step=False, on_epoch=True)
-        self.test_preds.extend(outputs.argmax(dim=1).tolist())
+        self.test_preds.extend(output_student.argmax(dim=1).tolist())
         self.test_labels.extend(labels.tolist())
 
-        self.log_metrics(outputs, labels, prefix='test')
+        self.log_metrics(output_student, labels, prefix='test')
 
         return loss
 

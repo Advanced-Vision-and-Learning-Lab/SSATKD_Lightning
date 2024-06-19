@@ -5,7 +5,11 @@ from .modulate2 import modulate2
 import pyximport
 import numpy as np
 pyximport.install(setup_args={'include_dirs': np.get_include()})
-from .resamp4c import resamp4c
+#Issue if C compiler not found
+try:
+    from .resamp4c import resamp4c
+except:
+    from .resamp4 import resamp4c
 import torch
 from torch.nn import functional as F
 from scipy.ndimage import zoom
@@ -76,28 +80,28 @@ def batch_multi_channel_pdfbdec(x, pfilt="maxflat", dfilt="dmaxflat7", nlevs=[0,
         y = [x]
     else:
         # Get the pyramidal filters from the filter name
-        h, g = pfilters(pfilt)
+        h, g = pfilters(pfilt, device=device)
         if nlevs[-1] != 0:
             # Laplacian decomposition
-            xlo, xhi = lpdec(x, h, g, device=device)
+            xlo, xhi = lpdec(x.to(device), h, g, device=device)
             # DFB on the bandpass image
             if dfilt == 'pkva6' or dfilt == 'pkva8' or dfilt == 'pkva12' or dfilt == 'pkva':
                 # Use the ladder structure (whihc is much more efficient)
-                xhi_dir = dfbdec_l(xhi, dfilt, nlevs[-1])
+                xhi_dir = dfbdec_l(xhi, dfilt, nlevs[-1],  device=device)
             else:
                 # General case
-                xhi_dir = dfbdec(xhi, dfilt, nlevs[-1])
+                xhi_dir = dfbdec(xhi, dfilt, nlevs[-1],  device=device)
 
         else:
             # Special case: nlevs(end) == 0
             # Perform one-level 2-D critically sampled wavelet filter bank
-            xlo, xLH, xHL, xHH = wfb2dec(x, h, g)
+            xlo, xLH, xHL, xHH = wfb2dec(x.to(device), h, g,  device=device)
             xhi_dir = [xLH]
             xhi_dir.append(xHL)
             xhi_dir.append(xHH)
 
         # Recursive call on the low band
-        ylo = batch_multi_channel_pdfbdec(xlo, pfilt, dfilt, nlevs[0:-1])
+        ylo = batch_multi_channel_pdfbdec(xlo, pfilt, dfilt, nlevs[0:-1],  device=device)
 
         # Add bandpass directional subbands to the final output
         y = ylo[:]
@@ -128,7 +132,7 @@ def dfbdec(x, fname, n, device=torch.device("cpu")):
     if n == 0:
         # No decomposition, simply copy input to output
         y = [None]
-        y[0] = x.copy()
+        y[0] = x.clone().to(device)
         return y
 
     # Get the diamond-shaped filters
@@ -143,17 +147,17 @@ def dfbdec(x, fname, n, device=torch.device("cpu")):
     if n == 1:
         # Simplest case, one level
         y = [[None]] * 2
-        y[0], y[1] = fbdec(x, k0, k1, 'q', '1r', 'per')
+        y[0], y[1] = fbdec(x, k0, k1, 'q', '1r', 'per', device=device)
     else:
         # For the cases that n >= 2
         # First level
-        x0, x1 = fbdec(x, k0, k1, 'q', '1r', 'per')
+        x0, x1 = fbdec(x, k0, k1, 'q', '1r', 'per', device=device)
         # Second level
         y = [[None]] * 4
-        y[0], y[1] = fbdec(x0, k0, k1, 'q', '2c', 'qper_col')
-        y[2], y[3] = fbdec(x1, k0, k1, 'q', '2c', 'qper_col')
+        y[0], y[1] = fbdec(x0, k0, k1, 'q', '2c', 'qper_col', device=device)
+        y[2], y[3] = fbdec(x1, k0, k1, 'q', '2c', 'qper_col', device=device)
         # Fan filters from diamond filters
-        f0, f1 = ffilters(h0, h1)
+        f0, f1 = ffilters(h0, h1, device=device)
         # Now expand the rest of the tree
         for l in range(3, n + 1):
             # Allocate space for the new subband outputs
@@ -161,17 +165,17 @@ def dfbdec(x, fname, n, device=torch.device("cpu")):
             y = [[None]] * 2**l
             # The first half channels use R1 and R2
             for k in range(0, 2**(l - 2)):
-                i = mod(k, 2)
+                i = k % 2
                 y[2 * k], y[2 * k + 1] = fbdec(y_old[k],
-                                               f0[i], f1[i], 'pq', i, 'per')
+                                               f0[i], f1[i], 'pq', i, 'per', device=device)
             # The second half channels use R3 and R4
             for k in range(2**(l - 2), 2**(l - 1)):
-                i = mod(k, 2) + 2
+                i = (k % 2) + 2
                 y[2 * k], y[2 * k + 1] = fbdec(y_old[k],
-                                               f0[i], f1[i], 'pq', i, 'per')
+                                               f0[i], f1[i], 'pq', i, 'per', device=device)
     # Back sampling (so that the overal sampling is separable)
     # to enhance visualization
-    y = backsamp(y)
+    y = backsamp(y, device=device)
     # Flip the order of the second half channels
     y[2**(n - 1)::] = y[::-1][:2**(n - 1)]
 
@@ -188,41 +192,52 @@ def pfilters(fname, device=torch.device("cpu")):
     for separable pyramid"""
 
     if fname == "9/7" or fname == "9-7":
-        h = array([.037828455506995, -.023849465019380, -.11062440441842,
+        h_np = np.array([.037828455506995, -.023849465019380, -.11062440441842,
                    .37740285561265])
-        h = hstack((h, .85269867900940, h[::-1]))
+        h_np = np.hstack((h_np, .85269867900940, h_np[::-1]))
 
-        g = array([-.064538882628938, -.040689417609558, .41809227322221])
-        g = hstack((g, .78848561640566, g[::-1]))
+        g_np = np.array([-.064538882628938, -.040689417609558, .41809227322221])
+        g_np = np.hstack((g_np, .78848561640566, g_np[::-1]))
 
-        return h, g
+        h = torch.tensor(h_np, dtype=torch.float32, device=device)
+        g = torch.tensor(g_np, dtype=torch.float32, device=device)
+
     elif fname == "maxflat":
-        M1 = 1 / sqrt(2)
+        M1 = 1 / np.sqrt(2)
         M2 = M1
-        k1 = 1 - sqrt(2)
+        k1 = 1 - np.sqrt(2)
         k2 = M1
         k3 = k1
-        h = array([.25 * k2 * k3, .5 * k2, 1 + .5 * k2 * k3]) * M1
-        h = hstack((h, h[len(h) - 2::-1]))
+        h_np = np.array([.25 * k2 * k3, .5 * k2, 1 + .5 * k2 * k3]) * M1
+        h_np = np.hstack((h_np, h_np[len(h_np) - 2::-1]))
 
-        g = array([-.125 * k1 * k2 * k3, 0.25 * k1 * k2, -0.5 * k1 - 0.5 * k3 - 0.375 * k1 * k2 * k3,
+        g_np = np.array([-.125 * k1 * k2 * k3, 0.25 * k1 * k2, -0.5 * k1 - 0.5 * k3 - 0.375 * k1 * k2 * k3,
                    1 + .5 * k1 * k2]) * M2
-        g = hstack((g, g[len(g) - 2::-1]))
+        g_np = np.hstack((g_np, g_np[len(g_np) - 2::-1]))
         # Normalize
-        h = h * sqrt(2)
-        g = g * sqrt(2)
-        return h, g
-    elif fname == "5/3" or fname == "5-3":
-        h = [-1, 2, 6, 2, -1] / (4 * sqrt(2))
-        g = [1, 2, 1] / (2 * sqrt(2))
-        return h, g
-    elif fname == "burt" or fname == "Burt":
-        h = array([0.6, 0.25, -0.05])
-        h = sqrt(2) * hstack((h[len(h):0:-1], h))
+        h_np = h_np * np.sqrt(2)
+        g_np = g_np * np.sqrt(2)
 
-        g = array([17.0 / 28, 73.0 / 280, -3.0 / 56, -3.0 / 280])
-        g = sqrt(2) * hstack((g[len(g):0:-1], g))
-        return h, g
+        h = torch.tensor(h_np, dtype=torch.float32, device=device)
+        g = torch.tensor(g_np, dtype=torch.float32, device=device)
+
+    elif fname == "5/3" or fname == "5-3":
+        h_np = np.array([-1, 2, 6, 2, -1]) / (4 * np.sqrt(2))
+        g_np = np.array([1, 2, 1]) / (2 * np.sqrt(2))
+
+        h = torch.tensor(h_np, dtype=torch.float32, device=device)
+        g = torch.tensor(g_np, dtype=torch.float32, device=device)
+
+    elif fname == "burt" or fname == "Burt":
+        h_np = np.array([0.6, 0.25, -0.05])
+        h_np = np.sqrt(2) * np.hstack((h_np[len(h_np):0:-1], h_np))
+
+        g_np = np.array([17.0 / 28, 73.0 / 280, -3.0 / 56, -3.0 / 280])
+        g_np = np.sqrt(2) * np.hstack((g_np[len(g_np):0:-1], g_np))
+
+        h = torch.tensor(h_np, dtype=torch.float32, device=device)
+        g = torch.tensor(g_np, dtype=torch.float32, device=device)
+
     elif fname == "pkva":
         # filters from the ladder structure
         # Allpass filter for the ladder structure network
@@ -231,29 +246,36 @@ def pfilters(fname, device=torch.device("cpu")):
         lf = len(beta)
         n = float(lf) / 2
 
-        if n != floor(n):
+        if n != np.floor(n):
             print("The input allpass filter must be even length")
 
         # beta(z^2)
-        beta2 = zeros(2 * lf - 1)
+        beta2 = np.zeros(2 * lf - 1)
         beta2[::2] = beta
 
         # H(z)
-        h = beta2.copy()
-        h[2 * n - 1] = h[2 * n - 1] + 1
-        h = h / 2
+        h_np = beta2.copy()
+        h_np[int(2 * n - 1)] = h_np[int(2 * n - 1)] + 1
+        h_np = h_np / 2
 
         # G(z)
-        g = -convolve(beta2, h)
-        g[4 * n - 2] = g[4 * n - 2] + 1
-        g[1:-1:2] = -g[1:-1:2]
+        g_np = -np.convolve(beta2, h_np)
+        g_np[int(4 * n - 2)] = g_np[int(4 * n - 2)] + 1
+        g_np[1:-1:2] = -g_np[1:-1:2]
 
         # Normalize
-        h = h * sqrt(2)
-        g = g * sqrt(2)
-        return h, g
+        h_np = h_np * np.sqrt(2)
+        g_np = g_np * np.sqrt(2)
 
+        h = torch.tensor(h_np, dtype=torch.float32, device=device)
+        g = torch.tensor(g_np, dtype=torch.float32, device=device)
+
+    else:
+        raise ValueError("Filter name not recognized")
+
+    return h, g
 def lpdec(x, h, g, device=torch.device("cpu")):
+    # pdb.set_trace()
     """ LPDEC   Laplacian Pyramid Decomposition
 
     [c, d] = lpdec(x, h, g)
@@ -283,7 +305,10 @@ def lpdec(x, h, g, device=torch.device("cpu")):
 
     return c, d
 
-def sefilter2(x, f1, f2, extmod, shift, device=torch.device("cpu")):
+
+
+def sefilter2(x, f1, f2, extmod = 'per', shift=None, device=torch.device("cpu")):
+    # pdb.set_trace()
     """SEFILTER2   2D separable filtering with extension handling
     y = sefilter2(x, f1, f2, [extmod], [shift])
 
@@ -309,30 +334,56 @@ def sefilter2(x, f1, f2, extmod, shift, device=torch.device("cpu")):
         extmod = 'per'
 
     if shift is None:
-        shift = array([[0], [0]])
+        shift = torch.tensor([0, 0], dtype=torch.float32, device=device)
+    # Ensure filters are on the correct device
+    if not isinstance(f1, torch.Tensor):
+        f1 = torch.tensor(f1, dtype=torch.float32, device=device)
+    else:
+        f1 = f1.clone().detach().to(device)
 
-    # Make sure filter in a row vector
-    f1 = f1[:, np.newaxis].reshape(len(f1),)
-    f2 = f2[:, np.newaxis].reshape(len(f2),)
+    if not isinstance(f2, torch.Tensor):
+        f2 = torch.tensor(f2, dtype=torch.float32, device=device)
+    else:
+        f2 = f2.clone().detach().to(device)
+
+    # Make sure filters are in the correct format
+    f1 = f1.reshape(-1, 1)
+    f2 = f2.reshape(-1, 1)
     
     # Periodized extension
     lf1 = (len(f1) - 1) / 2.0
     lf2 = (len(f1) - 1) / 2.0
     y = extend2(x, floor(lf1) + shift[0], ceil(lf1) - shift[0],
-                floor(lf2) + shift[1], ceil(lf2) - shift[1], extmod)
+                floor(lf2) + shift[1], ceil(lf2) - shift[1], extmod, device=device)
 
-    # Seperable filter
-    if not torch.is_tensor(y):
-        inputs = torch.from_numpy(y.astype(np.float32)).to(device)
-    else:
-        inputs = y.type(torch.FloatTensor).to(device)
-    filters = torch.from_numpy((f1[:, np.newaxis] * f2).astype(np.float32)).to(device)
-    filters = filters[None, None, :, :]
-    filters = torch.repeat_interleave(filters, y.shape[1], axis=0)
+    # # Seperable filter
+    # if not torch.is_tensor(y):
+    #     inputs = torch.from_numpy(y.astype(np.float32)).to(device)
+    # else:
+    #     inputs = y.type(torch.FloatTensor).to(device)
+    # Separable filter
+    filters = f1 @ f2.T
+    filters = filters.unsqueeze(0).unsqueeze(0)
+    filters = filters.repeat(y.shape[1], 1, 1, 1)
     
-    y = F.conv2d(inputs, filters, groups=inputs.size(1))
-
+    y = F.conv2d(y, filters, groups=y.size(1))
+    
     return y
+
+
+# def mod(a, b):
+#     return a % b
+
+def getPerIndices(lx, lb, le, device=torch.device("cpu")):
+    I = torch.cat((torch.arange(lx - lb, lx, device=device), torch.arange(0, lx, device=device), torch.arange(0, le, device=device)))
+
+    # Wrap around the indices if they are out of bounds
+    if (lx < lb) or (lx < le):
+        I = torch.remainder(I, lx)
+        I[I == 0] = lx
+    I = torch.clamp(I, 0, lx - 1)
+
+    return I.to(torch.int)
 
 def extend2(x, ru, rd, cl, cr, extmod, device=torch.device("cpu")):
     """ EXTEND2   2D extension
@@ -341,7 +392,7 @@ def extend2(x, ru, rd, cl, cr, extmod, device=torch.device("cpu")):
     Input:
     x:  input image
     ru, rd: amount of extension, up and down, for rows
-    cl, cr: amount of extension, left and rigth, for column
+    cl, cr: amount of extension, left and right, for column
     extmod: extension mode.  The valid modes are:
     'per':      periodized extension (both direction)
     'qper_row': quincunx periodized extension in row
@@ -350,63 +401,53 @@ def extend2(x, ru, rd, cl, cr, extmod, device=torch.device("cpu")):
     Output:
     y:  extended image
 
-    Note:
-    Extension modes 'qper_row' and 'qper_col' are used multilevel
-    quincunx filter banks, assuming the original image is periodic in
-    both directions.  For example:
-    [y0, y1] = fbdec(x, h0, h1, 'q', '1r', 'per');
-    [y00, y01] = fbdec(y0, h0, h1, 'q', '2c', 'qper_col');
-    [y10, y11] = fbdec(y1, h0, h1, 'q', '2c', 'qper_col');
-
     See also:   FBDEC"""
-
-    _, _, rx, cx = array(x.shape)
+    
+    _, _, rx, cx = x.shape
 
     if extmod == 'per':
-
-        I = getPerIndices(rx, ru, rd)
+        I = getPerIndices(rx, ru, rd, device=device)
         y = x[:, :, I, :]
 
-        I = getPerIndices(cx, cl, cr)
-
-
+        I = getPerIndices(cx, cl, cr, device=device)
         y = y[:, :, :, I]
 
-
         return y
+
     elif extmod == 'qper_row':
         rx2 = round(rx / 2.0)
-        y = np.c_[np.r_[x[:, :, rx2:rx, cx - cl:cx], x[:, :, 0:rx2, cx - cl:cx]],
-               x, np.r_[x[:, :, rx2:rx, 0:cr], x[:, :, 0:rx2, 0:cr]]]
-        I = getPerIndices(rx, ru, rd)
+        y = torch.cat([torch.cat([x[:, :, rx2:rx, cx - cl:cx], x[:, :, 0:rx2, cx - cl:cx]], dim=2), 
+                       x, 
+                       torch.cat([x[:, :, rx2:rx, 0:cr], x[:, :, 0:rx2, 0:cr]], dim=2)], dim=3)
+        I = getPerIndices(rx, ru, rd, device=device)
         y = y[:, :, I, :]
         return y
+
     elif extmod == 'qper_col':
         cx2 = int(round(cx / 2.0))
-        y = np.concatenate([
-            np.c_[x[:, :, rx - ru:rx, cx2:cx], x[:, :, rx - ru:rx, 0:cx2]],
+        y = torch.cat([
+            torch.cat([x[:, :, rx - ru:rx, cx2:cx], x[:, :, rx - ru:rx, 0:cx2]], dim=3),
             x,
-            np.c_[x[:, :, 0:rd, cx2:cx], x[:, :, 0:rd, 0:cx2]]
-        ], axis=2)
+            torch.cat([x[:, :, 0:rd, cx2:cx], x[:, :, 0:rd, 0:cx2]], dim=3)
+        ], dim=2)
 
-        I = getPerIndices(cx, cl, cr)
+        I = getPerIndices(cx, cl, cr, device=device)
         y = y[:, :, :, I]
         return y
+
     else:
-        print("Invalid input for EXTMOD")
+        raise ValueError("Invalid input for EXTMOD")
 
 def getPerIndices(lx, lb, le, device=torch.device("cpu")):
-    I = np.hstack((np.arange(lx - lb, lx), np.arange(0, lx), np.arange(0, le)))
+    I = torch.cat((torch.arange(lx - lb, lx, device=device), torch.arange(0, lx, device=device), torch.arange(0, le, device=device)))
 
     # Wrap around the indices if they are out of bounds
     if (lx < lb) or (lx < le):
-        I = np.mod(I, lx)
+        I = torch.remainder(I, lx)
         I[I == 0] = lx
-    I = np.clip(I, 0, lx - 1)
+    I = torch.clamp(I, 0, lx - 1)
 
-    #print(f"getPerIndices - I: {I}, lx: {lx}, lb: {lb}, le: {le}")
-    return I.astype(int)
-
+    return I.to(torch.int)
 
 def fbdec(x, h0, h1, type1, type2, extmod, device=torch.device("cpu")):
     """ FBDEC   Two-channel 2D Filterbank Decomposition
@@ -476,7 +517,7 @@ def fbdec(x, h0, h1, type1, type2, extmod, device=torch.device("cpu")):
 
     return y0, y1
 
-def efilter2(x, f, extmod, shift, device=torch.device("cpu")):
+def efilter2(x, f, extmod='per', shift=None, device=torch.device("cpu")):
     """EFILTER2   2D Filtering with edge handling (via extension)
 
     y = efilter2(x, f, [extmod], [shift])
@@ -499,46 +540,46 @@ def efilter2(x, f, extmod, shift, device=torch.device("cpu")):
 
     See also:   EXTEND2, SEFILTER2"""
 
-    if extmod is None:
-        extmod = 'per'
     if shift is None:
-        shift = array([[0], [0]])
+        shift = np.array([[0], [0]])
 
     # Periodized extension
     if f.ndim < 2:
-        sf = (r_[1, array(f.shape)] - 1) / 2.0
+        sf = (np.r_[1, np.array(f.shape)] - 1) / 2.0
     else:
-        sf = (array(f.shape) - 1) / 2.0
+        sf = (np.array(f.shape) - 1) / 2.0
 
     ru = int(floor(sf[0]) + shift[0][0])
     rd = int(ceil(sf[0]) - shift[0][0])
     cl = int(floor(sf[1]) + shift[1][0])
     cr = int(ceil(sf[1]) - shift[1][0])
-    xext = extend2(x, ru, rd, cl, cr, extmod)
-  
-
+    xext = extend2(x, ru, rd, cl, cr, extmod, device)
 
     # Convolution and keep the central part that has the size as the input
     if f.ndim < 2:
-        inputs = xext.t.to(device)
-        filters = torch.from_numpy((f1[:, np.newaxis]).astype(np.float32)).to(device)
+        inputs = xext.to(device).float()  # Ensure input is float
+        if not torch.is_tensor(f):
+            filters = torch.from_numpy(f[:, np.newaxis].astype(np.float32)).to(device)
+        else:
+            filters = f[:, np.newaxis].float().to(device)  # Ensure filter is float
         filters = filters[None, None, :, :]
-        filters = torch.repeat_interleave(filters, y.shape[1], axis=0)
-
-        y = F.conv2d(inputs, filters, groups=inputs.size(1)).t
-        
+        filters = torch.repeat_interleave(filters, x.shape[1], axis=0)
+        y = torch.nn.functional.conv2d(inputs, filters, groups=inputs.size(1)).permute(0, 1, 3, 2)
     else:
         if not torch.is_tensor(xext):
             inputs = torch.from_numpy(xext.astype(np.float32)).to(device)
         else:
-            inputs = xext.to(device)
-        filters = torch.from_numpy(f.astype(np.float32))
+            inputs = xext.to(device).float()  # Ensure input is float
+        if not torch.is_tensor(f):
+            filters = torch.from_numpy(f.astype(np.float32)).to(device)
+        else:
+            filters = f.float().to(device)  # Ensure filter is float
         filters = filters[None, None, :, :]
         filters = torch.repeat_interleave(filters, x.shape[1], axis=0)
-        
-        y = F.conv2d(inputs, filters, groups=inputs.size(1))
+        y = torch.nn.functional.conv2d(inputs, filters, groups=inputs.size(1))
 
     return y
+
 
 def qdown(x, type, extmod, phase, device=torch.device("cpu")):
     """% QDOWN   Quincunx Downsampling
@@ -632,7 +673,7 @@ def resamp(x, type_, shift, extmod, device=torch.device("cpu")):
 
     # Convert to np.float32
     if torch.is_tensor(x):
-        x = x.detach().numpy()
+        x = x.cpu().detach().numpy()
     else:
         x = x.astype(np.float32)
     
@@ -723,9 +764,15 @@ def wfb2dec(x, h, g, device=torch.device("cpu")):
     % Output:
     %   x_LL, x_LH, x_HL, x_HH:   Four 2-D wavelet subbands"""
 
+    # Ensure h and g are on the correct device and convert to numpy for further processing
+    if torch.is_tensor(h):
+        h = h.cpu().detach().numpy()
+    if torch.is_tensor(g):
+        g = g.cpu().detach().numpy()
+
     # Make sure filter in a row vector
-    h = h[:, newaxis].reshape(len(h),)
-    g = g[:, newaxis].reshape(len(g),)
+    h = h[:, np.newaxis].reshape(len(h),)
+    g = g[:, np.newaxis].reshape(len(g),)
 
     h0 = h
     len_h0 = len(h0)
@@ -737,30 +784,30 @@ def wfb2dec(x, h, g, device=torch.device("cpu")):
     if mod(len_h1, 2) == 0:
         c = c + 1
     # print(c)
-    h1 = - g * (-1)**(arange(1, len_h1 + 1) - c)
+    h1 = - g * (-1)**(np.arange(1, len_h1 + 1) - c)
     ext_h1 = len_h1 - c + 1
 
     # Row-wise filtering
-    x_L = rowfiltering(x, h0, ext_h0)
+    x_L = rowfiltering(x, h0, ext_h0, device=device)
     x_L = x_L[:, :, :, ::2]  # (:, 1:2:end)
 
-    x_H = rowfiltering(x, h1, ext_h1)
+    x_H = rowfiltering(x, h1, ext_h1, device=device)
     x_H = x_H[:, :, :, ::2]  # x_H(:, 1:2:end);
 
     # Column-wise filtering
-    x_LL = rowfiltering(x_L.conj().permute(0, 1, 3, 2), h0, ext_h0)
+    x_LL = rowfiltering(x_L.conj().permute(0, 1, 3, 2), h0, ext_h0, device=device)
     x_LL = x_LL.conj().permute(0, 1, 3, 2)
     x_LL = x_LL[:, :, ::2, :]
 
-    x_LH = rowfiltering(x_L.conj().permute(0, 1, 3, 2), h1, ext_h1)
+    x_LH = rowfiltering(x_L.conj().permute(0, 1, 3, 2), h1, ext_h1, device=device)
     x_LH = x_LH.conj().permute(0, 1, 3, 2)
     x_LH = x_LH[:, :, ::2, :]
 
-    x_HL = rowfiltering(x_H.conj().permute(0, 1, 3, 2), h0, ext_h0)
+    x_HL = rowfiltering(x_H.conj().permute(0, 1, 3, 2), h0, ext_h0, device=device)
     x_HL = x_HL.conj().permute(0, 1, 3, 2)
     x_HL = x_HL[:, :, ::2, :]
 
-    x_HH = rowfiltering(x_H.conj().permute(0, 1, 3, 2), h1, ext_h1)
+    x_HH = rowfiltering(x_H.conj().permute(0, 1, 3, 2), h1, ext_h1, device=device)
     x_HH = x_HH.conj().permute(0, 1, 3, 2)
     x_HH = x_HH[:, :, ::2, :]
 
@@ -771,12 +818,15 @@ def rowfiltering(x, f, ext1, device=torch.device("cpu")):
     
     ext1 = int(ext1)
     ext2 = int(len(f) - ext1 - 1)
-    x = torch.concatenate([x[:, :, :, -ext1::], x, x[:, :, :, 0:ext2]], axis=3)
+    x = torch.cat([x[:, :, :, -ext1:], x, x[:, :, :, :ext2]], dim=3)
     
-    inputs = x.conj().permute(0, 1, 3, 2)
-    filters = torch.from_numpy(f[:, np.newaxis].astype(np.float32))
+    # Prepare inputs and filters for convolution
+    inputs = x.conj().permute(0, 1, 3, 2).to(device)
+    filters = torch.from_numpy(f[:, np.newaxis].astype(np.float32)).to(device)
     filters = filters[None, None, :, :]
-    filters = torch.repeat_interleave(filters, x.shape[1], axis=0)
-    y = F.conv2d(input=inputs, weight=filters, groups=inputs.size(1)).conj().permute(0, 1, 3, 2)
+    filters = filters.repeat(inputs.shape[1], 1, 1, 1)
+    
+    # Perform convolution
+    y = F.conv2d(inputs, filters, groups=inputs.size(1)).conj().permute(0, 1, 3, 2)
 
     return y
