@@ -288,7 +288,7 @@ class Lightning_Wrapper_KD(L.LightningModule):
         #         )
         loss, loss_dict = self.criterion(struct_feats_teacher, struct_feats_student, 
                                          stats_feats_teacher, stats_feats_student,
-                                         output_teacher, output_student,labels,self.stats_w, self.struct_w, self.distill_w)
+                                         output_teacher, output_student,labels)
 
 
         accuracy = getattr(self, 'train_accuracy')(output_student, labels)

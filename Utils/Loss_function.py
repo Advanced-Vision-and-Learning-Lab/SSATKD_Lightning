@@ -32,7 +32,7 @@ class SSTKAD_Loss(nn.Module):
         self.weights = [.9, .7, .5]
         
         
-    def forward(self,struct_teacher, struct_student, stats_teacher, stats_student, prob_teacher, prob_student, labels,stats_w, struct_w, distill_w):
+    def forward(self,struct_teacher, struct_student, stats_teacher, stats_student, prob_teacher, prob_student, labels):
         
         #Compute each loss
         class_loss = self.classification_loss(prob_student,labels)
@@ -50,8 +50,8 @@ class SSTKAD_Loss(nn.Module):
         distillation_loss = self.distill_loss(prob_student, prob_teacher)
         
         #Compute loss with weights
-        #loss = class_loss + (self.weights[0])*stat_loss + (self.weights[1])*struct_loss + (self.weights[2])*distillation_loss
-        loss = class_loss + (stats_w*stat_loss) + (struct_w*struct_loss) + (distill_w*distillation_loss)
+        loss = class_loss + (self.weights[0])*stat_loss + (self.weights[1])*struct_loss + (self.weights[2])*distillation_loss
+        # loss = class_loss + (stats_w*stat_loss) + (struct_w*struct_loss) + (distill_w*distillation_loss)
         # print(self.weights)
         
         #Create dictionary for plotting
