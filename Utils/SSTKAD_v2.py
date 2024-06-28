@@ -27,8 +27,8 @@ class SSTKAD(nn.Module):
 
     
         #TBD, add 1x1 convolution
-        #Read channels from second layer of teacher autonomously
-        self.feature_reduce = nn.Conv2d(64, self.struct_layer.out_channels,1)
+        #Read channels from second layer of student autonomously
+        self.feature_reduce = nn.Conv2d(64, 16,1)
         
     def set_parameter_requires_grad(self):
         
@@ -63,7 +63,6 @@ class SSTKAD(nn.Module):
         self.set_parameter_requires_grad()
         
     def forward(self, x):
-        # pdb.set_trace()
         
         #Compute spectrogram features using feature layer
         x = self.feature_extractor(x)
@@ -78,18 +77,13 @@ class SSTKAD(nn.Module):
                                                   mode="bilinear", align_corners=False)
         
         
-        #Pass feature maps through stats and structural modules
         struct_feats_student = self.struct_layer(feats_student)
         struct_feats_teacher = self.struct_layer(feats_teacher)
         
         stats_feats_student = self.stats_layer(feats_student)
         stats_feats_teacher = self.stats_layer(feats_teacher)
-        
-        # sstkad_dict = {'struct_feats_student':struct_feats_student, 'struct_feats_teacher':struct_feats_teacher,
-        #                'stats_feats_student':stats_feats_student,'stats_feats_teacher':stats_feats_teacher,
-        #                'output_student':output_student, 'output_teacher':output_teacher}
-        # Plot feature maps
 
+    
         
         return struct_feats_student, struct_feats_teacher, stats_feats_student, stats_feats_teacher, output_student, output_teacher
             

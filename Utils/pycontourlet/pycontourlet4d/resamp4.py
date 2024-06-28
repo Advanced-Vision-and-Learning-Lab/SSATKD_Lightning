@@ -1,5 +1,15 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Jun 15 14:32:14 2024
+
+@author: jpeeples
+"""
+
 import numpy as np
 import numpy.ma as ma
+import torch
+import pdb
+
 
 def is_string_like(obj):
     """Return True if *obj* looks like a string
@@ -24,6 +34,12 @@ def is_string_like(obj):
 # Define the data type for arrays
 DTYPE = np.float32
 
+def resampc_periodic_vect(x, m, n, y, type_, shift, batch, channel):
+    # pdb.set_trace()
+    for b in range(batch):
+       x[b] = torch.roll(x[b],shift,dims=-1)
+    return x
+
 def resampc_periodic(x, m, n, y, type_, shift, batch, channel):
     for b in range(batch):
         for c in range(channel):
@@ -47,6 +63,7 @@ def resampc_periodic(x, m, n, y, type_, shift, batch, channel):
     return y
 
 def resamp4c(x, type_, shift, extmod):
+    # pdb.set_trace()
     """RESAMPC. Resampling along the column
 
     y = resampc(x, type, shift, extmod)
@@ -73,48 +90,35 @@ def resamp4c(x, type_, shift, extmod):
     if not isinstance(extmod, str):
         raise ValueError("EXTMOD arg must be a string")
     
-    y = np.zeros(x.shape, dtype=np.float32)
+    y = torch.zeros_like(x)
     
     batch = x.shape[0]
     channel = x.shape[1]
     m = x.shape[2]
     n = x.shape[3]
     
+    assert x.shape == y.shape
+    
     if extmod == 'per':
-        for b in range(batch):
-            for c in range(channel):
-                for j in range(n):
-                    # Circular shift in each column
-                    if type_ == 0:
-                        k = (shift * j) % m
-                    else:
-                        k = (-shift * j) % m
-
-                    # Convert to non-negative mod if needed
-                    if k < 0:
-                        k += m
-                    for i in range(m):
-                        if k >= m:
-                            k -= m
-
-                        y[b, c, i, j] = x[b, c, k, j]
-
-                        k += 1
+        y = resampc_periodic_vect(x, m, n, y, type_, shift, batch, channel)
+    else:
+        raise ValueError(f"Unsupported extension mode: {extmod}")
                 
     return y
 
 # Example usage
 if __name__ == '__main__':
-    # Example data
-    x = np.random.rand(2, 3, 4, 5).astype(DTYPE)  # Create a random 4D array
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    x = torch.randn(2, 3, 2, 2, device=device)
     type_ = 0  # Resampling type
     shift = 1  # Amount of shift
     extmod = 'per'  # Extension mode
 
-    # Perform resampling
-    y = resamp4c(x, type_, shift, extmod)
-    
+    y, y_2= resamp4c(x, type_, shift, extmod)
     print("Input array:")
     print(x)
     print("Resampled array:")
     print(y)
+    print("Resampled array (vectorized):")
+    print(y_2)
+    print((y-y_2).sum())

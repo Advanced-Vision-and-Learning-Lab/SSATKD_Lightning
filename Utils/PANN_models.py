@@ -225,10 +225,8 @@ class Cnn14(nn.Module):
         """
         Input: (batch_size, data_length)"""
         x = self.spectrogram_extractor(input)   # (batch_size, 1, time_steps, freq_bins)
-        # print("spectrogram",x.shape)
         x = self.logmel_extractor(x)    # (batch_size, 1, time_steps, mel_bins)
-        # print("logmel",x.shape)
-        # print("type",x.type())
+
 
         x = x.transpose(1, 3)
         x = self.bn0(x)
@@ -243,8 +241,6 @@ class Cnn14(nn.Module):
             x = do_mixup(x, mixup_lambda)
 
         xx = self.conv_block1(x, pool_size=(2, 2), pool_type='avg')
-        # x_cdm = self.custom_cdm_layer(x)
-        # x_dtiem = self.custom_ditm_layer(x)
         x = F.dropout(xx, p=0.2, training=self.training)
         x = self.conv_block2(x, pool_size=(2, 2), pool_type='avg')
         x = F.dropout(x, p=0.2, training=self.training)
@@ -270,7 +266,7 @@ class Cnn14(nn.Module):
         # output_dict = {'clipwise_output': clipwise_output, 'embedding': embedding}
 
         return xx, output
-        # return output
+
     
 
 
@@ -939,8 +935,8 @@ class ResNet38(nn.Module):
         self.conv_block_after1 = ConvBlock(in_channels=512, out_channels=2048)
         
 
-        self.custom_cdm_layer = CustomCDMLayer(subband_level=2, num_classes=4, in_channels=64, device = device)
-        self.custom_ditm_layer = QCO_2d(scale=1, level_num=8, out_chan= 192)
+        # self.custom_cdm_layer = CustomCDMLayer(subband_level=2, num_classes=4, in_channels=64, device = device)
+        # self.custom_ditm_layer = QCO_2d(scale=1, level_num=8, out_chan= 192)
                 
 
         self.fc1 = nn.Linear(2048, 2048)
@@ -955,6 +951,7 @@ class ResNet38(nn.Module):
 
 
     def forward(self, input, mixup_lambda=None):
+        # pdb.set_trace()
         """
         Input: (batch_size, data_length)"""
 
@@ -972,11 +969,9 @@ class ResNet38(nn.Module):
         if self.training and mixup_lambda is not None:
             x = do_mixup(x, mixup_lambda)
         
-        x = self.conv_block1(x, pool_size=(2, 2), pool_type='avg')
-        x_cdm = self.custom_cdm_layer(x)
-        # pdb.set_trace()
-        x_dtiem = self.custom_ditm_layer(x)
-        x = F.dropout(x, p=0.2, training=self.training, inplace=True)
+        xx = self.conv_block1(x, pool_size=(2, 2), pool_type='avg')
+
+        x = F.dropout(xx, p=0.2, training=self.training, inplace=True)
         x = self.resnet(x)
         x = F.avg_pool2d(x, kernel_size=(2, 2))
         x = F.dropout(x, p=0.2, training=self.training, inplace=True)
@@ -995,7 +990,7 @@ class ResNet38(nn.Module):
         
         # output_dict = {'clipwise_output': clipwise_output, 'embedding': embedding}
 
-        return x_cdm, x_dtiem, output
+        return xx, output
 
 
 class ResNet54(nn.Module):
@@ -1418,8 +1413,6 @@ class MobileNetV1(nn.Module):
 
         self.conv1 = conv_bn(1, 32, 2)
         self.conv2 = conv_dw(32, 64, 1)
-        self.custom_cdm_layer = CustomCDMLayer(subband_level=2, num_classes=4, in_channels=64)
-        self.custom_ditm_layer = QCO_2d(scale=1, level_num=8, out_chan=192)
         self.rest_features = nn.Sequential(
             conv_dw(64, 128, 2),
             conv_dw(128, 128, 1),
@@ -1466,10 +1459,8 @@ class MobileNetV1(nn.Module):
             x = do_mixup(x, mixup_lambda)
         
         x = self.conv1(x)
-        x = self.conv2(x)
-        x_cdm = self.custom_cdm_layer(x)
-        x_dtiem = self.custom_ditm_layer(x)
-        x = self.rest_features(x)
+        xx = self.conv2(x)
+        x = self.rest_features(xx)
         x = torch.mean(x, dim=3)
         
         (x1, _) = torch.max(x, dim=2)
@@ -1481,7 +1472,7 @@ class MobileNetV1(nn.Module):
         
         output = self.fc_audioset(embedding)
 
-        return x_dtiem, x_cdm, output
+        return xx, output
 
 
 class InvertedResidual(nn.Module):

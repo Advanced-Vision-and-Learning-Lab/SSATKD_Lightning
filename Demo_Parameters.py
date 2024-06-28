@@ -36,6 +36,7 @@ def Parameters(args):
     data_selection = args.data_selection
     Dataset_names = {0: 'DeepShip'}
     HPRC = args.HPRC
+
     
     #Number of bins for histogram layer. Recommended values are 4, 8 and 16.
     #Set number of bins to powers of 2 (e.g., 2, 4, 8, etc.)
@@ -224,7 +225,7 @@ def Parameters(args):
     num_classes = {'DeepShip': 4}
     
     #Number of runs and/or splits for each dataset
-    Splits = {'DeepShip':1}
+    Splits = {'DeepShip':3}
     
     #Number of runs and/or splits for each dataset
     TDNN_feats = {'DeepShip': 1}
@@ -246,14 +247,16 @@ def Parameters(args):
     else:
         audio_features = False
     
-    
+    train_split=0.7
+    val_split=0.15
+    test_split=0.15
     Hist_model_name = 'Hist{}_{}'.format(student_model,numBins)
     Hist_model_name_teacher = 'Hist{}_{}'.format(teacher_model,numBins)
     
     #Return dictionary of parameters
     Params = {'save_results': save_results,'folder': folder,
                           'histogram': histogram,'Dataset': Dataset, 'data_dir': data_dir,'segment_length':segment_length,'sample_rate':sample_rate,
-                          'optimizer': optimizer,'HPRC':HPRC,
+                          'optimizer': optimizer,'HPRC':HPRC,'train_split':train_split,'val_split':val_split,'test_split':test_split,
                           'num_workers': num_workers, 'method': method,'lr': lr,
                           'step_size': step_size,'class_names':class_names,
                           'gamma': gamma, 'batch_size' : batch_size, 

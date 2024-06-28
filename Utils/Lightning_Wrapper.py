@@ -18,6 +18,8 @@ import csv
 import os
 import pdb
 import matplotlib.pyplot as plt
+from torch.profiler import profile, record_function, ProfilerActivity
+import numpy as np
 
 
 def plot_feature_maps(feature_maps, title):
@@ -31,11 +33,19 @@ def plot_feature_maps(feature_maps, title):
             idx = i * cols + j
             if idx < num_feature_maps:
                 ax = axs[i, j]
-                feature_map = feature_maps[0, idx].cpu().numpy()
+                feature_map = feature_maps[0, idx].cpu().detach().numpy()
                 ax.imshow(feature_map, cmap='viridis')
                 ax.axis('off')
             else:
                 axs[i, j].axis('off')
+    plt.suptitle(title)
+    plt.show()
+    
+def plot_single_feature_map(feature_map, title, feature_map_index=0):
+    fig, ax = plt.subplots(figsize=(5, 5))
+    feature_map = feature_map[0, feature_map_index].cpu().detach().numpy()
+    ax.imshow(feature_map, cmap='viridis')
+    ax.axis('off')
     plt.suptitle(title)
     plt.show()
 class Lightning_Wrapper(L.LightningModule):
@@ -98,6 +108,7 @@ class Lightning_Wrapper(L.LightningModule):
         return optimizer
 
     def training_step(self, batch, batch_idx):
+        # pdb.set_trace()
         signals, labels, idx = batch
         _, outputs= self.model(signals) 
         loss = self.criterion(outputs, labels.long())
@@ -190,7 +201,7 @@ class Lightning_Wrapper(L.LightningModule):
 
 
 class Lightning_Wrapper_KD(L.LightningModule):
-    def __init__(self, model,num_classes, optimizer=optim.Adam, learning_rate=1e-3,
+    def __init__(self, model,num_classes, stats_w, struct_w, distill_w, optimizer=optim.Adam, learning_rate=1e-3,
                  scheduler=None, criterion=nn.CrossEntropyLoss(), log_dir=None, 
                  label_names=None, stage='train',average='weighted', Params=None):
         super().__init__()
@@ -203,6 +214,9 @@ class Lightning_Wrapper_KD(L.LightningModule):
         self.criterion = criterion
         self.log_dir = log_dir
         self.stage = stage
+        self.stats_w = stats_w
+        self.distill_w = distill_w
+        self.struct_w = struct_w
         
         #Select average for f1, precision, and recall
         #Options are macro (sensitive to class imbalance), 
@@ -244,7 +258,7 @@ class Lightning_Wrapper_KD(L.LightningModule):
         # self.alpha = Params['alpha']
         
     def forward(self, x):
-        pdb.set_trace()
+        # pdb.set_trace()
        
         struct_feats_student, struct_feats_teacher, stats_feats_student, stats_feats_teacher, output_student, output_teacher = self.model(x)
         
@@ -260,68 +274,103 @@ class Lightning_Wrapper_KD(L.LightningModule):
     def configure_optimizers(self):
         optimizer = self.optimizer(self.parameters(), lr=self.learning_rate)
         return optimizer
+    
 
     def training_step(self, batch, batch_idx):
         signals, labels, idx = batch
-        
-        #Return dictionary of outputs
-        #outputs = self.model(signals)
-        
         struct_feats_student, struct_feats_teacher, stats_feats_student, stats_feats_teacher, output_student, output_teacher = self.model(signals)
-        classification_loss = F.cross_entropy(output_student, labels)
-        
-        loss, classification_loss, distillation_loss,struct_loss, stats_loss = Get_total_loss(struct_feats_teacher, struct_feats_student, stats_feats_teacher, stats_feats_student, 
-                                                                                                  output_teacher, output_student, classification_loss)                  
-     
+        # pdb.set_trace()
+            # with torch.profiler.record_function("calculate_loss"):
+        # classification_loss = F.cross_entropy(output_student, labels)
+        # loss, classification_loss, distillation_loss, struct_loss, stats_loss = Get_total_loss(
+        #     struct_feats_teacher, struct_feats_student, stats_feats_teacher, stats_feats_student, 
+        #     output_teacher, output_student, classification_loss
+        #         )
+        loss, loss_dict = self.criterion(struct_feats_teacher, struct_feats_student, 
+                                         stats_feats_teacher, stats_feats_student,
+                                         output_teacher, output_student,labels,self.stats_w, self.struct_w, self.distill_w)
+
+
         accuracy = getattr(self, 'train_accuracy')(output_student, labels)
+
         # Log accuracy and loss
         self.log('train_accuracy', accuracy, on_step=False, on_epoch=True)
         self.log('train_loss', loss, on_step=False, on_epoch=True)
-        self.log('classification_loss', classification_loss, on_step=False, on_epoch=True)
-        self.log('distillation_loss', distillation_loss, on_step=False, on_epoch=True)
-        self.log('struct_loss', struct_loss, on_step=False, on_epoch=True)
-        self.log('stats_loss', stats_loss, on_step=False, on_epoch=True)
+        # self.log('classification_loss', classification_loss, on_step=False, on_epoch=True)
+        # self.log('distillation_loss', distillation_loss, on_step=False, on_epoch=True)
+        # self.log('struct_loss', struct_loss, on_step=False, on_epoch=True)
+        # self.log('stats_loss', stats_loss, on_step=False, on_epoch=True)
         
-        #         # Visualize feature maps at a specific interval
-        # # if batch_idx % 100 == 0:  # Visualize every 100 batches
-        # plot_feature_maps(struct_feats_student, 'Structural Features - Student')
-        # plot_feature_maps(struct_feats_teacher, 'Structural Features - Teacher')
+        self.log('classification_loss', loss_dict['class_loss'], on_step=False, on_epoch=True)
+        self.log('distillation_loss', loss_dict['distill_loss'], on_step=False, on_epoch=True)
+        self.log('struct_loss', loss_dict['struct_loss'], on_step=False, on_epoch=True)
+        self.log('stats_loss', loss_dict['stat_loss'], on_step=False, on_epoch=True)
         
+        # # # Print profiling results
+        # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
+        
+        # plot_single_feature_map(struct_feats_teacher, "Structural Features Teacher", feature_map_index=0)
+        # plot_single_feature_map(stats_feats_teacher, "Statistical Features Teacher", feature_map_index=0)
+    
         return loss
 
 
 
     def validation_step(self, batch, batch_idx):
         signals, labels, idx = batch
-
-        struct_feats_student, struct_feats_teacher, stats_feats_student, stats_feats_teacher, output_student, output_teacher = self.model(signals)
-
-        loss = self.criterion(output_student, labels.long())
+     
+        struct_feats_student, struct_feats_teacher, stats_feats_student, stats_feats_teacher, output_student, output_teacher = self.model(signals)    
+        # pdb.set_trace()        
+        # classification_loss = F.cross_entropy(output_student, labels)
+        # loss, classification_loss, distillation_loss, struct_loss, stats_loss = Get_total_loss(
+        #     struct_feats_teacher, struct_feats_student, stats_feats_teacher, stats_feats_student, 
+        #     output_teacher, output_student, classification_loss
+        # )
+        
+        loss, loss_dict = self.criterion(struct_feats_teacher, struct_feats_student, 
+                                         stats_feats_teacher, stats_feats_student,
+                                         output_teacher, output_student,labels)
+     
         accuracy = getattr(self, 'val_accuracy')(output_student, labels)
         self.log('val_accuracy', accuracy, on_step=False, on_epoch=True)
-        self.log('val_loss', loss, on_step=False, on_epoch=True)
-        output_student.argmax(dim=1).tolist()
-        
+        self.log('val_loss', loss.mean(), on_step=False, on_epoch=True)
+        self.log('val_classification_loss', loss_dict['class_loss'], on_step=False, on_epoch=True)
+        self.log('val_distillation_loss', loss_dict['distill_loss'], on_step=False, on_epoch=True)
+        self.log('val_struct_loss', loss_dict['struct_loss'], on_step=False, on_epoch=True)
+        self.log('val_stats_loss', loss_dict['stat_loss'], on_step=False, on_epoch=True)
+        # self.log('val_classification_loss', classification_loss, on_step=False, on_epoch=True)
+        # self.log('val_distillation_loss', distillation_loss, on_step=False, on_epoch=True)
+        # self.log('val_struct_loss', struct_loss, on_step=False, on_epoch=True)
+        # self.log('val_stats_loss', stats_loss, on_step=False, on_epoch=True)
+     
+        # Print profiling results
+        # print(prof.key_averages().table(sort_by="cpu_time_total", row_limit=10))
+    
         if self.stage == 'test':
             self.val_preds.extend(output_student.argmax(dim=1).tolist())
             self.val_labels.extend(labels.tolist())
             self.log_metrics(output_student, labels, prefix='val')
-
+     
         return loss
+
 
     def test_step(self, batch, batch_idx):
         signals, labels, idx = batch
-        features = self.feature_layer(signals)
-        struct_feats_student, struct_feats_teacher, stats_feats_student, stats_feats_teacher, output_student, output_teacher  = self.model(features)
-        loss = self.criterion(output_student, labels.long())
-
+    
+        struct_feats_student, struct_feats_teacher, stats_feats_student, stats_feats_teacher, output_student, output_teacher = self.model(signals)
+            
+        loss, _ = self.criterion(output_student, labels.long())
+        
         self.log('test_loss', loss, on_step=False, on_epoch=True)
         self.test_preds.extend(output_student.argmax(dim=1).tolist())
         self.test_labels.extend(labels.tolist())
-
+    
         self.log_metrics(output_student, labels, prefix='test')
+    
 
+    
         return loss
+
 
     def log_metrics(self, outputs, labels, prefix):
         accuracy = getattr(self, f'{prefix}_accuracy')(outputs, labels)

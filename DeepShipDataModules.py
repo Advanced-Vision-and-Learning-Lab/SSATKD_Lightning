@@ -8,7 +8,7 @@ import pytorch_lightning as pl
 import pdb
 
 class DeepShipSegments(Dataset):
-    def __init__(self, parent_folder, train_split=0.7, val_split=0.1, test_split=0.2,
+    def __init__(self, parent_folder, train_split=0.7, val_split=0.2, test_split=0.3,
                  partition='train', random_seed=42, shuffle=False, transform=None, 
                  target_transform=None, norm_function=None):
         assert train_split + val_split + test_split == 1, "Splits must add up to 1"

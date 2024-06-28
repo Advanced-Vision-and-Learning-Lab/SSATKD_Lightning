@@ -15,7 +15,7 @@ import pdb
 class TDNN(nn.Module):
     
     def __init__(self, in_channels, stride=1, dilation=1, batch_norm=True,
-                     num_class=4, output_len=1, drop_p=0.1, subband_level=2, device=None):
+                     num_class=4, output_len=1, drop_p=0.5, subband_level=2, device=None):
         '''
         Baseline TDNN model
        

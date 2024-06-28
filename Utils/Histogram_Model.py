@@ -11,7 +11,7 @@ import pdb
 class HistRes(nn.Module):
     
     def __init__(self,histogram_layer, parallel=True,model_name ='resnet18',
-                 add_bn=True,scale=5,pretrained=True, TDNN_feats = 1,subband_level=2, device=None,num_class = 4,):
+                 add_bn=True,scale=5,pretrained=True, TDNN_feats = 1,subband_level=2,device=None,num_class = 4,):
         
         #inherit nn.module
         super(HistRes,self).__init__()

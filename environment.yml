@@ -1,0 +1,7 @@
+name: lightkd
+channels:
+  - defaults
+dependencies:
+  - python=3.11
+  - spyder
+prefix: /home/grads/j/jarin.ritu/anaconda3/envs/lightkd

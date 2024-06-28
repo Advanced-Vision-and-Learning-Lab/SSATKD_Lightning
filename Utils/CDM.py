@@ -11,12 +11,15 @@ import torch.nn as nn
 import torch
 import pdb 
 from Utils.contourlet_cnn import ContourletCNN
+from Utils.pycontourlet.pycontourlet4d.pycontourlet_module import Pycontourlet
+
 
 class CDM(nn.Module):
-    def __init__(self, in_channels, n_levs=[0,3,3,3]):  
+    def __init__(self,in_channels, n_levs=[0,3,3,3]):  
         super(CDM, self).__init__()
         
         # Parameters
+        self.Pycontourlet = Pycontourlet
         self.n_levs = n_levs
         self.struct_model = ContourletCNN(in_channels=in_channels, 
                                           n_levs=self.n_levs, 
@@ -25,8 +28,7 @@ class CDM(nn.Module):
         self.out_channels = in_channels
 
     def forward(self, x):
-       
-        #Pass through CDM module (custom ContourCNN)
+        pdb.set_trace()
         x = self.struct_model(x)
         
         #Get size of first feature maps
@@ -43,6 +45,6 @@ class CDM(nn.Module):
                 #Resize feature to same size as scale 1
                 feature = nn.functional.interpolate(feature, size=spatial_size, 
                                                     mode="bilinear", align_corners=False)
-                #features = torch.cat([features, feature],dim=1)
+                features = torch.cat([features, feature],dim=1)
     
         return features

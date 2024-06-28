@@ -11,6 +11,7 @@ import numpy as np
 import time
 import copy
 import torch.nn as nn
+import visualkeras
 ## PyTorch dependencies
 import torch
 import torch.nn as nn
@@ -21,6 +22,7 @@ from Utils.SSTKAD_v2 import SSTKAD
 from Utils.CDM_DBF import CustomCDMLayer
 from Utils.DTIEM_Model_RBF import QCO_2d
 from Utils.CDM import CDM
+from torch.profiler import profile, record_function, ProfilerActivity
 ## Hugging Face dependencies
 import timm
 
@@ -31,10 +33,19 @@ from Utils.Feature_Extraction_Layer import Feature_Extraction_Layer
 from Utils.PANN_models import Cnn14,ResNet38,MobileNetV1,Res1dNet31,Wavegram_Logmel_Cnn14,Cnn14_8k
 from Utils.TIMMKD import TIMMKD
 import pdb
+from torchsummary import summary
+from torchviz import make_dot
 #from Utils.Focalnet import focalnet_tiny_srf
 import os
+from Utils.pycontourlet.pycontourlet4d.pycontourlet_module import Pycontourlet
+from Utils.struct_layer import Struct_layer
+from Utils.EDM import EDM
 
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
+
+def forward_hook(module, input, output):
+    print(f"Input shape: {input[0].shape}")
+    print(f"Output shape: {output.shape}")
 
 def set_parameter_requires_grad_timm(model):
     
@@ -57,17 +68,15 @@ def initialize_model(mode,student_model,teacher_model, in_channels, out_channels
                       channels = 3,histogram=True, histogram_layer=None,parallel=True, add_bn=True, scale=5,
                       feat_map_size=4, TDNN_feats=1,window_length=250, 
                       hop_length=64, input_feature='STFT', sample_rate=16000, RGB=False,
-                      R=1, measure='norm', p=2.0, similarity=True):
+                      fusion='all'):
     
-    model_ft = None
-    teacher_model_ft = None
-    input_size = 0
-    RGB = False
-    
-    
+    feature_layer = Feature_Extraction_Layer(input_feature=input_feature, window_length=window_length,  window_size=512, hop_size=160, 
+        mel_bins=64, fmin=50, fmax=8000, classes_num=527,
+        hop_length=hop_length, sample_rate=sample_rate, RGB = RGB )
     
 
     if mode == 'student' or mode == 'distillation':
+        teacher_model_ft = None
         if student_model == "TDNN":
             model_ft = HistRes(histogram_layer, parallel=parallel,
                                model_name=student_model, add_bn=add_bn, scale=scale,
@@ -90,13 +99,9 @@ def initialize_model(mode,student_model,teacher_model, in_channels, out_channels
 
             model_ft.fc = nn.Linear(num_ftrs, num_classes)
 
-                           
-                
-    feature_layer = Feature_Extraction_Layer(input_feature=input_feature, window_length=window_length,  window_size=512, hop_size=160, 
-        mel_bins=64, fmin=50, fmax=8000, classes_num=527,
-        hop_length=hop_length, sample_rate=sample_rate, RGB = RGB )
 
     if mode == 'teacher' or mode == 'distillation':
+        # model_ft =  None
         if teacher_model == "CNN_14":
             if use_pretrained:
                 # Initialize the teacher model
@@ -114,41 +119,45 @@ def initialize_model(mode,student_model,teacher_model, in_channels, out_channels
                                          fmax=8000, classes_num=527)
                 
             #Create feature extaction layer for PANN networks 
-            # feature_layer.bn = teacher_model_ft.bn0
             feature_layer.bn = nn.BatchNorm2d(teacher_model_ft.bn0.num_features)
-            
-        
+
         elif teacher_model == 'ResNet38':
             # feature parameters from repo
             if use_pretrained:  # Pretrained on AudioSet
                 teacher_model_ft = ResNet38(sample_rate=32000, window_size=1024, hop_size=320, mel_bins=64, fmin=50, 
                     fmax=8000, classes_num=527)
-                state_dict = torch.load('./PANN_Weights/ResNet38_mAP=0.434.pth')['model']
-                missing_keys, unexpected_keys = teacher_model_ft.load_state_dict(state_dict, strict=False)
-                if missing_keys:
-                    print(f"Missing keys when loading pretrained weights: {missing_keys}")
-                if unexpected_keys:
-                    print(f"Unexpected keys when loading pretrained weights: {unexpected_keys}")
+                
+                try:
+                    teacher_state_dict = torch.load('./PANN_Weights/ResNet38_mAP=0.434.pth')['model']
+                    teacher_model_ft.load_state_dict(teacher_state_dict, strict=False)
+                except RuntimeError as e:
+                    print(f"Ignoring missing key during loading: {e}")
             else:
                 teacher_model_ft = ResNet38(sample_rate=32000, window_size=1024, hop_size=160, mel_bins=64, fmin=0, 
                     fmax=None, classes_num=num_classes)
                 
-            set_parameter_requires_grad(teacher_model_ft, feature_extract)
-            num_ftrs = teacher_model_ft.fc_audioset.in_features
-            teacher_model_ft.fc_audioset = nn.Linear(num_ftrs, num_classes)
-            input_size = 224
-            
+            #Create feature extaction layer for PANN networks 
+            feature_layer.bn = nn.BatchNorm2d(teacher_model_ft.bn0.num_features)
+        
         elif teacher_model == 'MobileNetV1':
             #feature parameters from repo
             if use_pretrained: #Pretrained on AudioSet
                 teacher_model_ft = MobileNetV1(sample_rate=32000, window_size=1024, hop_size=320, mel_bins=64, fmin=50, 
                     fmax=8000, classes_num=527)
-                teacher_model_ft.load_state_dict(torch.load('./PANN_Weights/MobileNetV1_mAP=0.389.pth')['model'])
+                
+                try:
+                    teacher_state_dict = torch.load('./PANN_Weights/MobileNetV1_mAP=0.389.pth')['model']
+                    teacher_model_ft.load_state_dict(teacher_state_dict, strict=False)
+                except RuntimeError as e:
+                    print(f"Ignoring missing key during loading: {e}")
             else:
                 teacher_model_ft = MobileNetV1(sample_rate=32000, window_size=1024, hop_size=160, mel_bins=64, fmin=0, 
                     fmax=None, classes_num=num_classes)
-                
-                
+        
+            #Create feature extaction layer for PANN networks 
+            feature_layer.bn = nn.BatchNorm2d(teacher_model_ft.bn0.num_features)  
+          
+         #timm models: convnextv2_base, resnet101,    
         elif teacher_model in timm.list_models():
               teacher_model_ft = timm.create_model(model_name = teacher_model, pretrained = use_pretrained,
                                           num_classes=num_classes,in_chans=channels)        
@@ -169,9 +178,14 @@ def initialize_model(mode,student_model,teacher_model, in_channels, out_channels
         else:
             num_ftrs_t = teacher_model_ft.fc_audioset.in_features
             teacher_model_ft.fc_audioset = nn.Linear(num_ftrs_t,num_classes)
-                
+            
+    # pdb.set_trace()
     
-    struct_layer =  CDM(in_channels=16)
+    # filter_op = Pycontourlet()            
+            
+    # struct_layer =  CDM(in_channels=16)
+    # struct_layer = Struct_layer(in_channels=16, max_level=2)
+    struct_layer = EDM(in_channels=16,max_level=3,fusion=fusion)
     stats_layer = QCO_2d(scale=1, level_num=8)
 
     SSTKAD_Model = SSTKAD(feature_layer, model_ft, teacher_model_ft, struct_layer, stats_layer)
