@@ -2171,7 +2171,10 @@ class Res1dNet31(nn.Module):
             x = do_mixup(x, mixup_lambda)
 
         x = self.bn0(self.conv0(x))
-        x = self.resnet(x)
+        x = self.resnet.layer1[0].conv1(x)
+        xx = self.resnet.layer1[0].conv2(x)
+
+        x = self.resnet(xx)
 
         (x1, _) = torch.max(x, dim=2)
         x2 = torch.mean(x, dim=2)
@@ -2179,11 +2182,10 @@ class Res1dNet31(nn.Module):
         x = F.dropout(x, p=0.5, training=self.training)
         x = F.relu_(self.fc1(x))
         embedding = F.dropout(x, p=0.5, training=self.training)
-        clipwise_output = torch.sigmoid(self.fc_audioset(x))
         
-        output_dict = {'clipwise_output': clipwise_output, 'embedding': embedding}
+        output = self.fc_audioset(embedding)
 
-        return output_dict
+        return xx, output
 
 
 class Res1dNet51(nn.Module):
@@ -2449,10 +2451,10 @@ class Wavegram_Logmel_Cnn14(nn.Module):
             x = do_mixup(x, mixup_lambda)
             a1 = do_mixup(a1, mixup_lambda)
         
-        x = self.conv_block1(x, pool_size=(2, 2), pool_type='avg')
+        xx = self.conv_block1(x, pool_size=(2, 2), pool_type='avg')
 
         # Concatenate Wavegram and Log mel spectrogram along the channel dimension
-        x = torch.cat((x, a1), dim=1)
+        x = torch.cat((xx, a1), dim=1)
 
         x = F.dropout(x, p=0.2, training=self.training)
         x = self.conv_block2(x, pool_size=(2, 2), pool_type='avg')
@@ -2473,11 +2475,10 @@ class Wavegram_Logmel_Cnn14(nn.Module):
         x = F.dropout(x, p=0.5, training=self.training)
         x = F.relu_(self.fc1(x))
         embedding = F.dropout(x, p=0.5, training=self.training)
-        clipwise_output = torch.sigmoid(self.fc_audioset(x))
         
-        output_dict = {'clipwise_output': clipwise_output, 'embedding': embedding}
+        output = self.fc_audioset(embedding)
 
-        return output_dict
+        return xx, output
 
 
 class Wavegram_Logmel128_Cnn14(nn.Module):

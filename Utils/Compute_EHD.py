@@ -11,6 +11,9 @@ import pdb
 import torch
 import torch.types
 import torch.nn as nn
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy import signal, ndimage
 # from skimage.feature import local_binary_pattern
 # from torchvision import transforms
 # import dask
@@ -61,7 +64,8 @@ class EHD_Layer(nn.Module):
         self.masks = self.masks.to(x.device)
         
         #Treat independently
-        x = F.conv2d(x, self.masks,dilation= self.dilation, groups= self.in_channels)
+        x = F.conv2d(x, self.masks,dilation=self.dilation, groups=self.in_channels)
+        
         
         #Find max response
         if self.aggregation_type == 'max':
@@ -124,3 +128,20 @@ class EHD_Layer(nn.Module):
             else:
                 masks = (1/8) * (1/16)**len(dim) * masks 
         return masks
+    def visualize_feature_maps(self):
+        if self.feature_maps is None:
+            print("No feature maps to visualize.")
+            return
+        
+        feature_maps = self.feature_maps.squeeze(0)  # Remove batch dimension
+
+        fig, axes = plt.subplots(2, 4, figsize=(15, 8))
+        axes = axes.ravel()
+
+        for idx in range(8):
+            axes[idx].imshow(feature_maps[idx].cpu().numpy(), cmap='gray')
+            axes[idx].set_title(f'Direction {idx * 45}°')
+            axes[idx].axis('off')
+
+        plt.tight_layout()
+        plt.show()

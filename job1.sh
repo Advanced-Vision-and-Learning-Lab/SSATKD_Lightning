@@ -2,11 +2,8 @@
 
 
 OPTIM="Adagrad"
-FOLDER="Saved_Models/new_losses/$OPTIM/"
-EPOCH=50
-MODE='distillation'
-
-
-
-python demo.py --folder $FOLDER --optimizer $OPTIM --num_epochs $EPOCH --mode $MODE
+FOLDER="Saved_Models/CNN_3_Runs/$OPTIM/"
+EPOCH=300
+mode='teacher'
+python demo.py --folder $FOLDER --optimizer $OPTIM --num_epochs $EPOCH --mode $mode
 

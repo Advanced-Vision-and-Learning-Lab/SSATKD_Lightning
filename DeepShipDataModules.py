@@ -5,11 +5,10 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import train_test_split
 from scipy.io import wavfile
 import pytorch_lightning as pl
-import pdb
 
 class DeepShipSegments(Dataset):
-    def __init__(self, parent_folder, train_split=0.7, val_split=0.2, test_split=0.3,
-                 partition='train', random_seed=42, shuffle=False, transform=None, 
+    def __init__(self, parent_folder, train_split=0.7, val_split=0.2, test_split=0.1,
+                 partition='train', random_seed=42, shuffle=True, transform=None, 
                  target_transform=None, norm_function=None):
         assert train_split + val_split + test_split == 1, "Splits must add up to 1"
         self.parent_folder = parent_folder
@@ -33,16 +32,27 @@ class DeepShipSegments(Dataset):
             if not os.path.exists(label_path):
                 raise FileNotFoundError(f"Directory {label_path} does not exist.")
             subfolders = os.listdir(label_path)
+
+            if len(subfolders) < 3:
+                raise ValueError(f"Not enough subfolders to split for label '{label}'. Need at least 3.")
             
-            train_size = self.train_split
-            test_val_size = self.val_split + self.test_split
-            val_size = self.val_split / test_val_size
+            num_samples = len(subfolders)
+            train_size = int(num_samples * self.train_split)
+            val_size = int(num_samples * self.val_split)
+            test_size = num_samples - train_size - val_size
             
-            subfolders_train, subfolders_test_val = train_test_split(
-                subfolders, train_size=train_size, shuffle=self.shuffle, random_state=self.random_seed
+            if train_size + val_size + test_size > num_samples:
+                raise ValueError(f"The sum of train_size, val_size, and test_size must be less than the number of samples ({num_samples}).")
+            
+            subfolders_train_val, subfolders_test = train_test_split(
+                subfolders, train_size=train_size + val_size, 
+                test_size=test_size, shuffle=self.shuffle, random_state=self.random_seed
             )
-            subfolders_val, subfolders_test = train_test_split(
-                subfolders_test_val, train_size=val_size, shuffle=self.shuffle, random_state=self.random_seed
+            
+            val_size_adjusted = val_size / (train_size + val_size)
+            subfolders_train, subfolders_val = train_test_split(
+                subfolders_train_val, train_size=1 - val_size_adjusted, test_size=val_size_adjusted, 
+                shuffle=self.shuffle, random_state=self.random_seed
             )
             
             self._add_subfolders_to_list(label_path, subfolders_train, 'train', label)
@@ -57,6 +67,10 @@ class DeepShipSegments(Dataset):
             subfolder_path = os.path.join(label_path, subfolder)
             self.folder_lists[split].append((subfolder_path, self.class_mapping[label]))
 
+        # print(f"\n{split.capitalize()} split folders for label '{label}':")
+        # for folder in self.folder_lists[split]:
+        #     print(f"Folder: {folder[0]}, Label: {folder[1]}")
+
     def _collect_segments(self):
         for split in self.folder_lists.keys():
             for folder, label in self.folder_lists[split]:
@@ -65,6 +79,20 @@ class DeepShipSegments(Dataset):
                         if file.endswith('.wav'):
                             file_path = os.path.join(root, file)
                             self.segment_lists[split].append((file_path, label))
+            if self.shuffle:
+                np.random.seed(self.random_seed)
+                np.random.shuffle(self.segment_lists[split])
+            # print(f"{split.capitalize()} set: {len(self.folder_lists[split])} folders, {len(self.segment_lists[split])} segments")
+            label_counts = {0: 0, 1: 0, 2: 0, 3: 0}
+            for _, label in self.segment_lists[split]:
+                label_counts[label] += 1
+            # print(f"{split.capitalize()} label distribution: {label_counts}")
+            if split == 'test':
+                with open('test_folders.txt', 'w') as f:
+                    f.write(f"\nFolders in the test set ({len(self.folder_lists['test'])} folders):\n")
+                    for folder, label in self.folder_lists['test']:
+                        f.write(f"Folder: {folder}, Label: {label}\n")
+                        # print(f"Folder: {folder}, Label: {label}")
 
     def __len__(self):
         return len(self.segment_lists[self.partition])
@@ -80,11 +108,13 @@ class DeepShipSegments(Dataset):
         if self.norm_function is not None:
             signal = self.norm_function(signal)
         signal = torch.tensor(signal)
-
+        if torch.isnan(signal).any():
+            raise ValueError(f"NaN values found in signal from file {file_path}")
         label = torch.tensor(label)
         if self.target_transform:
             label = self.target_transform(label)
-
+        
+        
         return signal, label, idx
     
     def compute_global_min_max(self):
@@ -106,12 +136,10 @@ class DeepShipSegments(Dataset):
 
     def set_norm_function(self, global_min, global_max):
         self.norm_function = lambda x: (x - global_min) / (global_max - global_min)
-        # Debug print statement
         print(f"Normalization function set with global_min: {global_min}, global_max: {global_max}")
-
 class DeepShipDataModule(pl.LightningDataModule):
     def __init__(self, data_dir, batch_size, num_workers, pin_memory, 
-                 train_split=0.7, val_split=0.1, test_split=0.2, random_seed=42, shuffle=False):
+                 train_split=0.7, val_split=0.1, test_split=0.2, random_seed=42, shuffle=True):
         super().__init__()
         print(f"train_split: {train_split}, val_split: {val_split}, test_split: {test_split}")
         assert train_split + val_split + test_split == 1, "Splits must add up to 1"
@@ -129,7 +157,6 @@ class DeepShipDataModule(pl.LightningDataModule):
         self.global_max = None
 
     def prepare_data(self):
-        # Download or prepare data if necessary
         pass
 
     def setup(self, stage=None):

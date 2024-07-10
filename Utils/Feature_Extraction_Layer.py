@@ -119,4 +119,7 @@ class Feature_Extraction_Layer(nn.Module):
         if self.training:
             x = self.spec_augmenter(x)
         #pdb.set_trace()
+        if torch.isnan(x).any():
+            raise ValueError(f"NaN values found in signal from file {x}")
+            pdb.set_trace()
         return x

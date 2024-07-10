@@ -65,6 +65,9 @@ class EMDLoss2D(nn.Module):
         target_bin_x = teacher_hist[:, :, :, 0]
         target_bin_y = teacher_hist[:, :, :, 1]
         
+        # print("\npred_bin_x",pred_bin_x[:2,:2,:2])
+        # print("\npred_bin_y",pred_bin_y[:2,:2,:2])
+        
         # pdb.set_trace()
 
         # Ensure the histograms are normalized
@@ -78,7 +81,10 @@ class EMDLoss2D(nn.Module):
         # Calculate the distances between each pair of 2D bin centers
         bin_centers_x_diff = pred_bin_x.unsqueeze(-1) - target_bin_x.unsqueeze(-3)
         bin_centers_y_diff = pred_bin_y.unsqueeze(-1) - target_bin_y.unsqueeze(-3)
+        # print("\nbin_centers_x_diff",bin_centers_x_diff[:2,:2,:2,:2])
+        # print("\nbin_centers_y_diff",bin_centers_y_diff[:2,:2,:2,:2])
         ground_distance = torch.sqrt(bin_centers_x_diff**2 + bin_centers_y_diff**2)
+        # print("\nground_distance",ground_distance[:2,:2,:2,:2])
 
         # Expand bin_diffs to match the dimensions of cdf_pred and cdf_target
         ground_distance = ground_distance.unsqueeze(0).unsqueeze(0)

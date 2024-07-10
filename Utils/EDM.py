@@ -14,8 +14,8 @@ from scipy import signal, ndimage
 from kornia.geometry.transform import build_laplacian_pyramid
 import matplotlib.pyplot as plt
 from Utils.Compute_EHD import EHD_Layer
+from kornia.augmentation import PadTo
 import pdb
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class EDM(nn.Module):
     def __init__(self, in_channels, max_level, border_type='reflect', align_corners=False,
@@ -65,6 +65,8 @@ class EDM(nn.Module):
     
         # Compute EHD response for the first level (x[1])
         features = self.ehd_layer(x[1])
+        
+        # pdb.set_trace()
         spatial_size = features.shape[-2:]
         
         # # Resize x[1] to the spatial size of x[2]
@@ -72,7 +74,10 @@ class EDM(nn.Module):
     
         # Initialize the concatenated features with the resized features for x[1]
         features = [features]
+        # self.ehd_layer.visualize_feature_maps()
         # features = [features, spatial_features]
+        
+        resize_feats = PadTo((spatial_size[0],spatial_size[1]),pad_mode='constant')
     
         # Iterate through the pyramid levels starting from x[2]
         for feature in x[2:]:
@@ -83,8 +88,9 @@ class EDM(nn.Module):
             feature = self.weighted_sum(feature)
     
             # Resize feature to the same size as the spatial size from x[2]
-            feature = nn.functional.interpolate(feature, size=spatial_size, 
-                                                mode="bilinear", align_corners=False)
+            # feature = nn.functional.interpolate(feature, size=spatial_size, 
+            #                                     mode="bilinear", align_corners=False)
+            feature = resize_feats(feature)
             features.append(feature)
     
         # Concatenate all features along the channel dimension

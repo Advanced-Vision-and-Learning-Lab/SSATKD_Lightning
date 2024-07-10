@@ -2,6 +2,7 @@ import torch
 import pdb
 import torch.nn as nn
 from torch.nn import functional as F
+# from point_features import point_sample
 
 
 
@@ -54,6 +55,7 @@ class QCO_2d(nn.Module):
         quant_left = quant[:, :, :, :self.size_h, :self.size_w].unsqueeze(3) 
         quant_right = quant[:, :, :, 1:, 1:].unsqueeze(2) 
         quant = quant_left * quant_right 
+        # print(quant)
 
         # pdb.set_trace()
         sta = quant.sum(-1).sum(-1)  
@@ -73,26 +75,5 @@ class QCO_2d(nn.Module):
         
         
         # sta = sta.reshape(N, 3, self.scale * self.scale, -1)
-        
-        
-        # sta = self.f1(sta)
-        # sta = self.f2(sta)
-        # x_ave = x_ave.reshape(N, C, -1)
-        # x_ave = x_ave.expand(self.level_num*self.level_num, N, C, self.scale*self.scale)
-        # x_ave = x_ave.permute(1, 2, 3, 0)
-        # sta = torch.cat([x_ave, sta], dim=1) # PDF
-        # # sta = torch.squeeze(sta)
-        # # cdf_sta = torch.cumsum(sta, dim=1)
-        # sta = self.out(sta)
-        # sta = sta.mean(-1)
-        # sta = sta.reshape(N, sta.shape[1], self.scale, self.scale)
-        
-        # theta = 0.5  #
-    
-        # # Apply denoising to the 'sta' tensor
-        # denoised_sta = self.denoise(sta, theta)
-
-
-
         return sta
     

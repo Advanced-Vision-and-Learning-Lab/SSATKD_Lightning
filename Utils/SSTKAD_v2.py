@@ -11,6 +11,7 @@ import numpy as np
 import pdb
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
+from kornia.augmentation import PadTo
 
 class SSTKAD(nn.Module):
     def __init__(self, feature_extractor, student, teacher, struct_layer, stats_layer):
@@ -63,6 +64,7 @@ class SSTKAD(nn.Module):
         self.set_parameter_requires_grad()
         
     def forward(self, x):
+
         
         #Compute spectrogram features using feature layer
         x = self.feature_extractor(x)
@@ -73,14 +75,26 @@ class SSTKAD(nn.Module):
         
         #Match channels and spatial dimension of student and teacher
         feats_teacher = self.feature_reduce(feats_teacher)
-        feats_teacher = nn.functional.interpolate(feats_teacher, size=feats_student.shape[-2:], 
-                                                  mode="bilinear", align_corners=False)
+        
+        
+        # pdb.set_trace()
+        size = feats_student.shape[-2:]
+        resize_feats_teacher = PadTo((size[0],size[1]),pad_mode='constant')                                                                     
+        feats_teacher = resize_feats_teacher(feats_teacher)
+                                                                     
+        
+        
+        
+        # feats_teacher = nn.functional.interpolate(feats_teacher, size=feats_student.shape[-2:], 
+        #                                           mode="bilinear", align_corners=False)
         
         
         struct_feats_student = self.struct_layer(feats_student)
         struct_feats_teacher = self.struct_layer(feats_teacher)
+        # print("\ struct_feats_teacher",struct_feats_teacher[:2, :2, :2, :2])
         
         stats_feats_student = self.stats_layer(feats_student)
+        # print("\n stats",stats_feats_student[:2, :2, :2, :2])
         stats_feats_teacher = self.stats_layer(feats_teacher)
 
     

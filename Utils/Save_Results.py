@@ -19,6 +19,49 @@ import itertools
 import json
 import pdb
 
+
+def generate_filename_optuna(Network_parameters, split, trial_number):
+    # Generate filename for saving results
+    base_path = Network_parameters['folder']
+    mode = Network_parameters['mode']
+    method = Network_parameters['method']
+    dataset = Network_parameters['Dataset']
+    split_run = f"Run_{split + 1}"
+    trial_dir = f"trial_{trial_number}"
+
+    if mode == 'student':
+        model = Network_parameters['student_model']
+        if Network_parameters['feature_extraction']:
+            filename = f"{base_path}/{mode}/{method}/{dataset}/{model}/{trial_dir}/{split_run}/"
+        else:
+            filename = f"{base_path}/{mode}/{method}/{dataset}/{model}/{trial_dir}/{split_run}/"
+    
+    elif mode == 'teacher':
+        model = Network_parameters['teacher_model']
+        if Network_parameters['use_pretrained']:
+            if Network_parameters['feature_extraction']:
+                filename = f"{base_path}/{mode}/{Network_parameters['model']}/{method}/{dataset}/{model}/{trial_dir}/{split_run}/"
+            else:
+                filename = f"{base_path}/{mode}/{Network_parameters['model']}/{method}/{dataset}/{model}/{trial_dir}/{split_run}/"
+        else:
+            if Network_parameters['feature_extraction']:
+                filename = f"{base_path}/{mode}/{method}/{dataset}/{model}/{trial_dir}/{split_run}/"
+            else:
+                filename = f"{base_path}/{mode}/{method}/{dataset}/{model}/{trial_dir}/{split_run}/"
+    
+    else: # KD
+        student_model = Network_parameters['student_model']
+        teacher_model = Network_parameters['teacher_model']
+        if Network_parameters['feature_extraction']:
+            filename = f"{base_path}/{mode}/{method}/{dataset}/{student_model}_{teacher_model}/{trial_dir}/{split_run}/"
+        else:
+            filename = f"{base_path}/{mode}/{method}/{dataset}/{student_model}_{teacher_model}/{trial_dir}/{split_run}/"
+    
+    # Create directory if it does not exist
+    if not os.path.exists(filename):
+        os.makedirs(filename)
+    return filename
+
 def generate_filename(Network_parameters,split):
     # Generate filename for saving results
 

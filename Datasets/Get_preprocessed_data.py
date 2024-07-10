@@ -3,7 +3,7 @@ import librosa
 import soundfile as sf
 import math
 
-def Generate_Segments(dataset_dir, segments_dir, target_sr=16000, segment_length=3):
+def Generate_Segments(dataset_dir, segments_dir, target_sr=32000, segment_length=3):
     '''
     dataset_dir: Directory containing DeepShip data folder
     segments_dir: Directory to save segments

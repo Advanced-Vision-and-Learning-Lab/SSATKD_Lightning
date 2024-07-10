@@ -23,7 +23,7 @@ class SSTKAD_Loss(nn.Module):
         
         #Initalize loss modules
         self.classification_loss = nn.CrossEntropyLoss()
-        self.stats_loss = EarthMoversDistanceLoss()
+        self.stats_loss = EMDLoss2D()
         self.struct_loss = nn.CosineEmbeddingLoss()
         self.distill_loss = EarthMoversDistanceLoss()
         
@@ -32,17 +32,19 @@ class SSTKAD_Loss(nn.Module):
         self.weights = [.9, .7, .5]
         
         
-    def forward(self,struct_teacher, struct_student, stats_teacher, stats_student, prob_teacher, prob_student, labels):
+    def forward(self,struct_teacher, struct_student, stats_teacher, stats_student, prob_teacher, prob_student, labels,stats_w, struct_w, distill_w):
         
         #Compute each loss
         class_loss = self.classification_loss(prob_student,labels)
         
         #for statistical loss, use 2D EMD loss
         stat_loss = self.stats_loss(stats_teacher, stats_student)
+        # print("\stat_loss",stat_loss)
         
         #For structural loss, use cosine embedding with target values equal to 1
         target_struct = torch.ones(struct_student.size(0)).to(struct_student.device)
         struct_loss = self.struct_loss(struct_student.flatten(1), struct_teacher.flatten(1), target_struct)
+        # print("\struct_loss",struct_loss)
         
         #Compute distillation loss 
         prob_student = F.softmax(prob_student / 2, dim=-1)
@@ -50,8 +52,8 @@ class SSTKAD_Loss(nn.Module):
         distillation_loss = self.distill_loss(prob_student, prob_teacher)
         
         #Compute loss with weights
-        loss = class_loss + (self.weights[0])*stat_loss + (self.weights[1])*struct_loss + (self.weights[2])*distillation_loss
-        # loss = class_loss + (stats_w*stat_loss) + (struct_w*struct_loss) + (distill_w*distillation_loss)
+        #loss = class_loss + (self.weights[0])*stat_loss + (self.weights[1])*struct_loss + (self.weights[2])*distillation_loss
+        loss = class_loss + (stats_w*stat_loss) + (struct_w*struct_loss) + (distill_w*distillation_loss)
         # print(self.weights)
         
         #Create dictionary for plotting
@@ -84,6 +86,8 @@ def Get_total_loss(struct_teacher, struct_student, stats_teacher, stats_student,
 
     # stats_loss = F.mse_loss(stats_student, stats_teacher, reduction='mean')
     print("Stats Loss:", stats_loss)
+    
+    
 
     dist_loss = EarthMoversDistanceLoss()
     # pdb.set_trace()
