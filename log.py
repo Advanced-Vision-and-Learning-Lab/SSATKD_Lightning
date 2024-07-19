@@ -1,15 +1,133 @@
+# import os
+# from collections import defaultdict
+# import numpy as np
+# import matplotlib.pyplot as plt
+# from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+
+
+# def extract_metrics(log_dir):
+#     event_files = []
+#     for root, _, files in os.walk(log_dir):
+#         for file in files:
+#             if 'events.out.tfevents' in file:
+#                 event_files.append(os.path.join(root, file))
+
+#     if not event_files:
+#         print(f"No event files found in {log_dir}.")
+#         return {}
+
+#     metrics = defaultdict(list)
+#     for event_file in event_files:
+#         event_acc = EventAccumulator(event_file)
+#         event_acc.Reload()
+
+#         tags = event_acc.Tags()
+#         print(f"Tags for {event_file}: {tags}")  # Print the tags
+
+#         if 'scalars' not in tags:
+#             continue
+
+#         scalar_tags = tags['scalars']
+#         epochs = {}
+#         for tag in scalar_tags:
+#             events = event_acc.Scalars(tag)
+#             if tag == 'epoch':
+#                 epochs = {e.step: e.value for e in events}
+#                 break
+
+#         if not epochs:
+#             print(f"No epoch tag found in {event_file}.")
+#             continue
+
+#         for tag in scalar_tags:
+#             if tag != 'epoch':
+#                 events = event_acc.Scalars(tag)
+#                 for e in events:
+#                     if e.step in epochs:
+#                         epoch = epochs[e.step]
+#                         metrics[tag].append((epoch, e.value))
+
+#     return metrics
+
+# def aggregate_metrics(runs_dirs):
+#     all_metrics = defaultdict(list)
+#     for run_dir in runs_dirs:
+#         print(f"Checking directory: {run_dir}")
+#         metrics = extract_metrics(run_dir)
+#         if metrics:
+#             for key, values in metrics.items():
+#                 all_metrics[key].append(values)
+#     return all_metrics
+
+# def compute_stats(all_metrics):
+#     stats = {}
+#     for key, values_list in all_metrics.items():
+#         all_values = [value for values in values_list for _, value in values]
+#         if all_values:
+#             mean = np.mean(all_values)
+#             std = np.std(all_values)
+#             stats[key] = {'mean': mean, 'std': std}
+#     return stats
+
+# def plot_metrics(all_metrics, metric_name):
+#     plt.figure(figsize=(10, 5))
+#     for run_idx, values in enumerate(all_metrics.get(metric_name, [])):
+#         epochs = [epoch for epoch, _ in values]
+#         values = [value for _, value in values]
+#         plt.plot(epochs, values, label=f'Run {run_idx + 1}')
+
+#     plt.xlabel('Epochs')
+#     plt.ylabel(metric_name.replace('_', ' ').title())
+#     plt.legend()
+#     plt.title(f'{metric_name.replace("_", " ").title()} Across Runs')
+#     plt.show()
+
+# # Example usage:
+# runs_dirs = [
+#     '/home/grads/j/jarin.ritu/Documents/Research/SSTKAD_Lightning/Saved_Models/AdamW_withoutLR/Adagrad/distillation/Fine_Tuning/DeepShip/TDNN_CNN_14/Run_1/tb_logs/model_logs/run_1',
+#     '/home/grads/j/jarin.ritu/Documents/Research/SSTKAD_Lightning/Saved_Models/AdamW_withoutLR/Adagrad/distillation/Fine_Tuning/DeepShip/TDNN_CNN_14/Run_2/tb_logs/model_logs/run_2',
+#     '/home/grads/j/jarin.ritu/Documents/Research/SSTKAD_Lightning/Saved_Models/AdamW_withoutLR/Adagrad/distillation/Fine_Tuning/DeepShip/TDNN_CNN_14/Run_3/tb_logs/model_logs/run_3'
+# ]
+
+# all_metrics = aggregate_metrics(runs_dirs)
+# stats = compute_stats(all_metrics)
+
+# # Print detailed metrics for each run
+# for metric_name, runs_values in all_metrics.items():
+#     print(f"\nMetric: {metric_name}")
+#     for run_idx, values in enumerate(runs_values):
+#         print(f" Run {run_idx + 1}:")
+#         for epoch, value in values:
+#             print(f"  Epoch {epoch}: {value}")
+
+# # Print aggregated statistics
+# print("\nAggregated Metrics:")
+# for key, stat in stats.items():
+#     print(f"{key}: mean = {stat['mean']}, std = {stat['std']}")
+
+# # Plot the metrics
+# metrics_to_plot = [
+#     'train_loss', 'val_loss', 'val_classification_loss', 'val_distillation_loss',
+#     'val_struct_loss', 'val_stats_loss', 'test_loss', 'train_accuracy',
+#     'val_accuracy', 'test_accuracy'
+# ]
+
+# for metric in metrics_to_plot:
+#     plot_metrics(all_metrics, metric)
+
+
+
+
 import os
 from collections import defaultdict
 import numpy as np
 import matplotlib.pyplot as plt
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
-def extract_metrics(log_dir, steps_per_epoch):
-    event_files = []
-    for root, _, files in os.walk(log_dir):
-        for file in files:
-            if 'events.out.tfevents' in file:
-                event_files.append(os.path.join(root, file))
+def extract_metrics(log_dir):
+    event_files = [os.path.join(root, file)
+                   for root, _, files in os.walk(log_dir)
+                   for file in files if 'events.out.tfevents' in file]
 
     if not event_files:
         print(f"No event files found in {log_dir}.")
@@ -18,25 +136,45 @@ def extract_metrics(log_dir, steps_per_epoch):
     metrics = defaultdict(list)
     for event_file in event_files:
         event_acc = EventAccumulator(event_file)
-        event_acc.Reload()
+        try:
+            event_acc.Reload()
+        except Exception as e:
+            print(f"Error loading {event_file}: {e}")
+            continue
 
         tags = event_acc.Tags()
+        print(f"Tags for {event_file}: {tags}")
+
         if 'scalars' not in tags:
             continue
 
         scalar_tags = tags['scalars']
+        epochs = {}
         for tag in scalar_tags:
             events = event_acc.Scalars(tag)
-            values = [(e.step // steps_per_epoch, e.value) for e in events]
-            metrics[tag].extend(values)
+            if tag == 'epoch':
+                epochs = {e.step: e.value for e in events}
+                break
+
+        if not epochs:
+            print(f"No epoch tag found in {event_file}.")
+            continue
+
+        for tag in scalar_tags:
+            if tag != 'epoch':
+                events = event_acc.Scalars(tag)
+                for e in events:
+                    if e.step in epochs:
+                        epoch = epochs[e.step]
+                        metrics[tag].append((epoch, e.value))
 
     return metrics
 
-def aggregate_metrics(runs_dirs, steps_per_epoch):
+def aggregate_metrics(runs_dirs):
     all_metrics = defaultdict(list)
     for run_dir in runs_dirs:
         print(f"Checking directory: {run_dir}")
-        metrics = extract_metrics(run_dir, steps_per_epoch)
+        metrics = extract_metrics(run_dir)
         if metrics:
             for key, values in metrics.items():
                 all_metrics[key].append(values)
@@ -45,7 +183,6 @@ def aggregate_metrics(runs_dirs, steps_per_epoch):
 def compute_stats(all_metrics):
     stats = {}
     for key, values_list in all_metrics.items():
-        # Flatten all values for each tag
         all_values = [value for values in values_list for _, value in values]
         if all_values:
             mean = np.mean(all_values)
@@ -53,26 +190,41 @@ def compute_stats(all_metrics):
             stats[key] = {'mean': mean, 'std': std}
     return stats
 
-def plot_metrics(all_metrics, metric_name):
+def plot_train_val_metrics(all_metrics, train_metric_name, val_metric_name, title):
     plt.figure(figsize=(10, 5))
-    for run_idx, values in enumerate(all_metrics.get(metric_name, [])):
-        steps = [step for step, _ in values]
-        values = [value for _, value in values]
-        plt.plot(steps, values, label=f'Run {run_idx + 1}')
+    found_data = False
+    for run_idx, (train_values, val_values) in enumerate(zip(all_metrics.get(train_metric_name, []), all_metrics.get(val_metric_name, []))):
+        if not train_values or not val_values:
+            print(f"No data for {train_metric_name} or {val_metric_name} in run {run_idx + 1}")
+            continue
+        found_data = True
+        train_epochs = [epoch for epoch, _ in train_values]
+        train_values = [value for _, value in train_values]
+        val_epochs = [epoch for epoch, _ in val_values]
+        val_values = [value for _, value in val_values]
+        plt.plot(train_epochs, train_values, label=f'Train Run {run_idx + 1}')
+        plt.plot(val_epochs, val_values, label=f'Val Run {run_idx + 1}')
 
-    plt.xlabel('Steps')
-    plt.ylabel(metric_name.replace('_', ' ').title())
-    plt.legend()
-    plt.title(f'{metric_name.replace("_", " ").title()} Across Runs')
-    plt.show()
+    if found_data:
+        plt.xlabel('Epochs')
+        plt.ylabel(title.replace('_', ' ').title())
+        plt.legend()
+        plt.title(f'{title.replace("_", " ").title()} Across Runs')
+        plt.show()
+    else:
+        print(f"No data found for {title}.")
 
 # Example usage:
 runs_dirs = [
-    '/home/grads/j/jarin.ritu/Documents/Research/SSTKAD_Lightning/Saved_Models/AdamW_KD/Adagrad/distillation/Fine_Tuning/DeepShip/TDNN_CNN_14/Run_1/tb_logs/model_logs/run_1'
-  ]
+    '/home/grads/j/jarin.ritu/Documents/Research/SSTKAD_Lightning/Saved_Models/AdamW0.0001HLTDNN_3runs/Adagrad/student/Fine_Tuning/DeepShip/TDNN/Run_3/tb_logs/model_logs/version_0'
 
-steps_per_epoch = 37  # Steps per epoch based on your earlier calculation
-all_metrics = aggregate_metrics(runs_dirs, steps_per_epoch)
+]
+
+# runs_dirs = [
+#     '/home/grads/j/jarin.ritu/Documents/Research/SSTKAD_Lightning/Saved_Models/CNN_3_Runs/Adagrad/teacher/Pretrained/Fine_Tuning/DeepShip/CNN_14/Run_2/tb_logs/model_logs/run_2'
+# ]
+
+all_metrics = aggregate_metrics(runs_dirs)
 stats = compute_stats(all_metrics)
 
 # Print detailed metrics for each run
@@ -80,21 +232,25 @@ for metric_name, runs_values in all_metrics.items():
     print(f"\nMetric: {metric_name}")
     for run_idx, values in enumerate(runs_values):
         print(f" Run {run_idx + 1}:")
-        for step, value in values:
-            print(f"  Step {step}: {value}")
+        for epoch, value in values:
+            print(f"  Epoch {epoch}: {value}")
 
 # Print aggregated statistics
 print("\nAggregated Metrics:")
 for key, stat in stats.items():
     print(f"{key}: mean = {stat['mean']}, std = {stat['std']}")
 
+# Define metric name mappings
+loss_metrics = [
+    ('classification_loss', 'val_classification_loss', 'Classification Loss'),
+    ('distillation_loss', 'val_distillation_loss', 'Distillation Loss'),
+    ('struct_loss', 'val_struct_loss', 'Struct Loss'),
+    ('stats_loss', 'val_stats_loss', 'Stats Loss')
+]
+
 # Plot the metrics
-plot_metrics(all_metrics, 'train_loss')
-plot_metrics(all_metrics, 'val_loss')
-plot_metrics(all_metrics, 'test_loss')
-plot_metrics(all_metrics, 'train_accuracy')
-plot_metrics(all_metrics, 'val_accuracy')
-plot_metrics(all_metrics, 'test_accuracy')
+for train_metric, val_metric, title in loss_metrics:
+    plot_train_val_metrics(all_metrics, train_metric, val_metric, title)
 
 
 
@@ -107,101 +263,12 @@ plot_metrics(all_metrics, 'test_accuracy')
 
 
 
-# from collections import defaultdict
-# import os
-# import matplotlib.pyplot as plt
-# from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
-# def extract_metrics(log_dir, steps_per_epoch):
-#     event_files = []
-#     for root, _, files in os.walk(log_dir):
-#         for file in files:
-#             if 'events.out.tfevents' in file:
-#                 event_files.append(os.path.join(root, file))
 
-#     if not event_files:
-#         print("No event files found.")
-#         return
 
-#     metrics = defaultdict(list)
-#     for event_file in event_files:
-#         event_acc = EventAccumulator(event_file)
-#         event_acc.Reload()
 
-#         tags = event_acc.Tags()
-#         if 'scalars' not in tags:
-#             continue
 
-#         scalar_tags = tags['scalars']
-#         for tag in scalar_tags:
-#             events = event_acc.Scalars(tag)
-#             values = [(e.step // steps_per_epoch, e.value) for e in events]
-#             metrics[tag].extend(values)
 
-#     return metrics
 
-# def plot_metrics(metrics):
-#     train_loss = metrics.get('train_loss', [])
-#     val_loss = metrics.get('val_loss', [])
-#     test_loss = metrics.get('test_loss', []) or metrics.get('test_test_loss', [])
-#     train_accuracy = metrics.get('train_accuracy', [])
-#     val_accuracy = metrics.get('val_accuracy', [])
-#     test_accuracy = metrics.get('test_accuracy', []) or metrics.get('test_test_accuracy', [])
 
-#     # Debugging prints
-#     print("Train Loss:", train_loss)
-#     print("Validation Loss:", val_loss)
-#     print("Test Loss:", test_loss)
-#     print("Train Accuracy:", train_accuracy)
-#     print("Validation Accuracy:", val_accuracy)
-#     print("Test Accuracy:", test_accuracy)
 
-#     epochs_train_loss = [x[0] for x in train_loss]
-#     values_train_loss = [x[1] for x in train_loss]
-#     epochs_val_loss = [x[0] for x in val_loss]
-#     values_val_loss = [x[1] for x in val_loss]
-#     epochs_test_loss = [x[0] for x in test_loss]
-#     values_test_loss = [x[1] for x in test_loss]
-
-#     epochs_train_accuracy = [x[0] for x in train_accuracy]
-#     values_train_accuracy = [x[1] for x in train_accuracy]
-#     epochs_val_accuracy = [x[0] for x in val_accuracy]
-#     values_val_accuracy = [x[1] for x in val_accuracy]
-#     epochs_test_accuracy = [x[0] for x in test_accuracy]
-#     values_test_accuracy = [x[1] for x in test_accuracy]
-
-#     plt.figure(figsize=(10, 5))
-#     plt.plot(epochs_train_loss, values_train_loss, label='Train Loss')
-#     plt.plot(epochs_val_loss, values_val_loss, label='Validation Loss')
-#     if epochs_test_loss:
-#         plt.scatter(epochs_test_loss, values_test_loss, label='Test Loss', color='green')
-#     plt.xlabel('Epochs')
-#     plt.ylabel('Loss')
-#     plt.legend()
-#     plt.title('Loss Curves')
-#     plt.show()
-
-#     plt.figure(figsize=(10, 5))
-#     plt.plot(epochs_train_accuracy, values_train_accuracy, label='Train Accuracy')
-#     plt.plot(epochs_val_accuracy, values_val_accuracy, label='Validation Accuracy')
-#     if epochs_test_accuracy:
-#         plt.scatter(epochs_test_accuracy, values_test_accuracy, label='Test Accuracy', color='green')
-#     plt.xlabel('Epochs')
-#     plt.ylabel('Accuracy')
-#     plt.legend()
-#     plt.title('Accuracy Curves')
-#     plt.show()
-
-# log_dir = '/home/grads/j/jarin.ritu/Documents/Research/SSTKAD_Lightning/Saved_Models/AdamW_KD/Adagrad/distillation/Fine_Tuning/DeepShip/TDNN_CNN_14/Run_1/tb_logs/model_logs/run_1'
-
-# steps_per_epoch = 39  # Adjust this value based on your actual steps per epoch
-# metrics = extract_metrics(log_dir, steps_per_epoch)
-
-# # # Print aggregated metrics
-# # print("Aggregated Metrics:")
-# # for key, values in metrics.items():
-# #     avg_value = sum(value for _, value in values) / len(values)
-# #     print(f"Aggregated {key}: {avg_value}")
-
-# # Plot the metrics
-# plot_metrics(metrics)

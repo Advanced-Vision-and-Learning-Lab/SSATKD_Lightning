@@ -5,30 +5,28 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pdb
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
-# Define the path to the log directory
-#log_dir = '/home/grads/j/jarin.ritu/Documents/Research/SSTKAD_Lightning/Saved_Models/demo/student/Fine_Tuning/DeepShip/TDNN/Run_1/lightning_logs/Training'
+import os
+import tensorflow as tf
+import pandas as pd
+import matplotlib.pyplot as plt
 
 #log_dir = '/home/grads/j/jarin.ritu/Documents/Research/SSTKAD_Lightning/tb_logs/model_logs/run_1'
-log_dir = '/home/grads/j/jarin.ritu/Documents/Research/SSTKAD_Lightning/Saved_Models/CNN/Adagrad/teacher/Pretrained/Fine_Tuning/DeepShip/CNN_14/Run_1/tb_logs/model_logs/run_1/'
+log_dir = '/home/grads/j/jarin.ritu/Documents/Research/SSTKAD_Lightning/Saved_Models/loss_test_SGD/Adagrad/distillation/Fine_Tuning/DeepShip/TDNN_CNN_14/Run_1/tb_logs/model_logs/run_1'
 
-
-
-# Define the path to the log directory
-# log_dir = '/home/grads/j/jarin.ritu/Documents/Research/SSTKAD_Lightning/Saved_Models/new_losses/Adagrad/distillation/Fine_Tuning/DeepShip/TDNN_CNN_14/Run_1/lightning_logs/Training'
-
-# Function to list all available tags in TensorBoard logs
 def list_all_tags(logdir):
     tags_found = set()
-    for file_name in os.listdir(logdir):
-        if file_name.startswith('events.out.tfevents'):
-            event_file = os.path.join(logdir, file_name)
-            print(f"Reading file: {event_file}")
-            for event in tf.compat.v1.train.summary_iterator(event_file):
-                for value in event.summary.value:
-                    tags_found.add(value.tag)
+    for root, dirs, files in os.walk(logdir):
+        for file_name in files:
+            if file_name.startswith('events.out.tfevents'):
+                event_file = os.path.join(root, file_name)
+                print(f"Reading file: {event_file}")
+                for event in tf.compat.v1.train.summary_iterator(event_file):
+                    for value in event.summary.value:
+                        tags_found.add(value.tag)
     return tags_found
 
 # List and print all tags
+log_dir = '/home/grads/j/jarin.ritu/Documents/Research/SSTKAD_Lightning/Saved_Models/loss_test_SGD/Adagrad/distillation/Fine_Tuning/DeepShip/TDNN_CNN_14/Run_1/tb_logs/model_logs/run_1'
 tags_found = list_all_tags(log_dir)
 print("\nTags found in the log files:")
 for tag in tags_found:
@@ -37,18 +35,32 @@ for tag in tags_found:
 # Function to extract scalar data from TensorBoard logs with debugging
 def extract_scalars(logdir, tags):
     scalars = {tag: [] for tag in tags}
-    steps = {tag: [] for tag in tags}
-    for file_name in os.listdir(logdir):
-        if file_name.startswith('events.out.tfevents'):
-            event_file = os.path.join(logdir, file_name)
-            print(f"Reading file: {event_file}")
-            for event in tf.compat.v1.train.summary_iterator(event_file):
-                for value in event.summary.value:
-                    if value.tag in tags:
-                        scalars[value.tag].append(value.simple_value)
-                        steps[value.tag].append(event.step)
-                        print(f"Found tag: {value.tag}, Step: {event.step}, Value: {value.simple_value}")
-    return steps, scalars
+    epochs = {tag: [] for tag in tags}
+    current_epoch = None
+    
+    for root, dirs, files in os.walk(logdir):
+        for file_name in files:
+            if file_name.startswith('events.out.tfevents'):
+                event_file = os.path.join(root, file_name)
+                print(f"Reading file: {event_file}")
+                for event in tf.compat.v1.train.summary_iterator(event_file):
+                    for value in event.summary.value:
+                        if value.tag == 'epoch':
+                            current_epoch = int(value.simple_value)
+                            print(f"Epoch tag found: {current_epoch} at step {event.step}")
+                        if value.tag in tags:
+                            scalars[value.tag].append(value.simple_value)
+                            epochs[value.tag].append(current_epoch)
+                            print(f"Found tag: {value.tag}, Epoch: {current_epoch}, Value: {value.simple_value}, Step: {event.step}")
+    
+    # Fill missing epoch values
+    for tag in tags:
+        df = pd.DataFrame({'epoch': epochs[tag], 'value': scalars[tag]})
+        df['epoch'] = df['epoch'].fillna(method='ffill').astype(int)
+        epochs[tag] = df['epoch'].tolist()
+        scalars[tag] = df['value'].tolist()
+
+    return scalars, epochs
 
 # List of tags to extract
 tags = [
@@ -68,37 +80,44 @@ tags = [
 ]
 
 # Extract data
-steps, scalars = extract_scalars(log_dir, tags)
+scalars, epochs = extract_scalars(log_dir, tags)
 print("Extraction complete.")
 
+# Print the extracted data for verification
+print("\nExtracted Data:")
+for tag in tags:
+    print(f"\nTag: {tag}")
+    print(f"Epochs: {epochs[tag]}")
+    print(f"Values: {scalars[tag]}")
+
 # Function to plot scalar data with debugging
-def plot_scalar(tag, steps, values):
-    if len(steps) == 0 or len(values) == 0:
+def plot_scalar(tag, x, values):
+    if len(x) == 0 or len(values) == 0:
         print(f"No data to plot for tag: {tag}")
         return
-    plt.plot(steps, values, label=tag)
+    plt.plot(x, values, label=tag)
 
 # Plot train and validation losses separately
-def plot_train_val_losses_separately(train_steps, train_values, val_steps, val_values, loss_type):
+def plot_train_val_losses_separately(train_epochs, train_values, val_epochs, val_values, loss_type):
     plt.figure(figsize=(10, 6))
-    plot_scalar(f'train_{loss_type}', train_steps, train_values)
-    plot_scalar(f'val_{loss_type}', val_steps, val_values)
-    plt.xlabel('Steps')
+    plot_scalar(f'train_{loss_type}', train_epochs, train_values)
+    plot_scalar(f'val_{loss_type}', val_epochs, val_values)
+    plt.xlabel('Epochs')
     plt.ylabel(loss_type.capitalize() + ' Loss')
-    plt.title(f'Training and Validation {loss_type.capitalize()} Loss over Steps')
+    plt.title(f'Training and Validation {loss_type.capitalize()} Loss over Epochs')
     plt.legend()
     plt.grid(True)
     plt.savefig(f'{loss_type}_loss_plot.png')
     plt.show()
 
 # Plot train and validation accuracies together
-def plot_train_val_accuracies(train_steps, train_values, val_steps, val_values):
+def plot_train_val_accuracies(train_epochs, train_values, val_epochs, val_values):
     plt.figure(figsize=(10, 6))
-    plot_scalar('train_accuracy', train_steps, train_values)
-    plot_scalar('val_accuracy', val_steps, val_values)
-    plt.xlabel('Steps')
+    plot_scalar('train_accuracy', train_epochs, train_values)
+    plot_scalar('val_accuracy', val_epochs, val_values)
+    plt.xlabel('Epochs')
     plt.ylabel('Accuracy')
-    plt.title('Training and Validation Accuracy over Steps')
+    plt.title('Training and Validation Accuracy over Epochs')
     plt.legend()
     plt.grid(True)
     plt.savefig('accuracy_plot.png')
@@ -106,34 +125,15 @@ def plot_train_val_accuracies(train_steps, train_values, val_steps, val_values):
 
 # Plot train and val accuracies together
 print("Plotting Training and Validation Accuracies:")
-plot_train_val_accuracies(steps['train_accuracy'], scalars['train_accuracy'], steps['val_accuracy'], scalars['val_accuracy'])
+plot_train_val_accuracies(epochs['train_accuracy'], scalars['train_accuracy'], epochs['val_accuracy'], scalars['val_accuracy'])
 
 # Plot train and val losses separately
 print("Plotting Training and Validation Losses:")
-plot_train_val_losses_separately(steps['train_loss'], scalars['train_loss'], steps['val_loss'], scalars['val_loss'], 'loss')
-plot_train_val_losses_separately(steps['train_loss'], scalars['train_loss'], steps['test_loss'], scalars['test_loss'], 'loss')
-plot_train_val_losses_separately(steps['classification_loss'], scalars['classification_loss'], steps['val_classification_loss'], scalars['val_classification_loss'], 'classification')
-plot_train_val_losses_separately(steps['distillation_loss'], scalars['distillation_loss'], steps['val_distillation_loss'], scalars['val_distillation_loss'], 'distillation')
-plot_train_val_losses_separately(steps['struct_loss'], scalars['struct_loss'], steps['val_struct_loss'], scalars['val_struct_loss'], 'struct')
-plot_train_val_losses_separately(steps['stats_loss'], scalars['stats_loss'], steps['val_stats_loss'], scalars['val_stats_loss'], 'stats')
-
-# Print final accuracy values
-if 'train_accuracy' in scalars and scalars['train_accuracy']:
-    final_train_accuracy =  np.mean(scalars['train_accuracy'])
-    print(f"Final Train Accuracy: {final_train_accuracy:.4f}")
-
-if 'val_accuracy' in scalars and scalars['val_accuracy']:
-    final_val_accuracy =  np.mean(scalars['val_accuracy'])
-    print(f"Final Validation Accuracy: {final_val_accuracy:.4f}")
-
-if 'test_accuracy' in scalars and scalars['test_accuracy']:
-    final_test_accuracy =  np.mean(scalars['test_accuracy'])
-    print(f"Final Test Accuracy: {final_test_accuracy:.4f}")
-# Save final accuracies to a text file
-with open('final_accuracies.txt', 'w') as f:
-    f.write(f"Final Train Accuracy: {final_train_accuracy:.4f}\n")
-    f.write(f"Final Validation Accuracy: {final_val_accuracy:.4f}\n")
-    f.write(f"Final Test Accuracy: {final_test_accuracy:.4f}\n")
+plot_train_val_losses_separately(epochs['train_loss'], scalars['train_loss'], epochs['val_loss'], scalars['val_loss'], 'loss')
+plot_train_val_losses_separately(epochs['classification_loss'], scalars['classification_loss'], epochs['val_classification_loss'], scalars['val_classification_loss'], 'classification')
+plot_train_val_losses_separately(epochs['distillation_loss'], scalars['distillation_loss'], epochs['val_distillation_loss'], scalars['val_distillation_loss'], 'distillation')
+plot_train_val_losses_separately(epochs['struct_loss'], scalars['struct_loss'], epochs['val_struct_loss'], scalars['val_struct_loss'], 'struct')
+plot_train_val_losses_separately(epochs['stats_loss'], scalars['stats_loss'], epochs['val_stats_loss'], scalars['val_stats_loss'], 'stats')
 
 
 # def save_learning_curves(log_dir, output_path):

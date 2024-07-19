@@ -100,6 +100,5 @@ class SSTKAD(nn.Module):
     
         
         return struct_feats_student, struct_feats_teacher, stats_feats_student, stats_feats_teacher, output_student, output_teacher
-            
 
      

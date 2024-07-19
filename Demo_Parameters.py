@@ -36,6 +36,7 @@ def Parameters(args):
     data_selection = args.data_selection
     Dataset_names = {0: 'DeepShip'}
     HPRC = args.HPRC
+    mixup = args.mixup
 
     
     #Number of bins for histogram layer. Recommended values are 4, 8 and 16.
@@ -204,12 +205,7 @@ def Parameters(args):
     segment_length = 3
     sample_rate =32000
     
-    class_names = {'FashionMNIST': ['T-shirt/top', 'Trouser', 'Pullover', 'Dress', 'Coat',
-                                 'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle boot'],
-               'CIFAR10': ['airplane', 'automobile', 'bird', 'cat', 'deer',
-                           'dog', 'frog', 'horse', 'ship', 'truck'],
-               'sugarcane_damage_usa': ['cracked', 'crushed', 'no_buds', 'two_buds', 'single_damaged_buds', 'no_damage'],
-               'DeepShip':['Cargo', 'Passengership', 'Tanker', 'Tug']}
+    class_names = {'DeepShip':['Cargo', 'Passengership', 'Tanker', 'Tug']}
     
     #ResNet models to use for each dataset
     student_model = args.student_model
@@ -271,7 +267,7 @@ def Parameters(args):
                           'Splits': Splits, 'feature_extraction': feature_extraction,'use_pretrained': use_pretrained,
                           'hist_model': Hist_model_name, 'hist_model_teacher':Hist_model_name_teacher,'use_pretrained': use_pretrained,
                           'add_bn': add_bn, 'pin_memory': pin_memory, 'scale': scale,
-                          'TSNE_visual': TSNE_visual,
+                          'TSNE_visual': TSNE_visual,'mixup':mixup,
                           'Parallelize': Parallelize_model,
                           'Num_TSNE_images': Num_TSNE_images,'fig_size': fig_size,
                           'font_size': font_size, 'feature': feature, 

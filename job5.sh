@@ -2,11 +2,12 @@
 
 # Set variables
 OPTIM="Adagrad"
-FOLDER="Saved_Models/Res1dNet31_300/$OPTIM/"
+FOLDER="Saved_Models/student_shuffle/$OPTIM/"
 EPOCH=300
-MODE="teacher"
-TEACHER="Res1dNet31"
+MODE="student"
+
+
 
 # First Executable Line
-python3 demo.py --folder $FOLDER --num_epochs $EPOCH --mode $MODE --teacher_model $TEACHER
+python3 demo.py --folder $FOLDER --num_epochs $EPOCH --mode $MODE
 

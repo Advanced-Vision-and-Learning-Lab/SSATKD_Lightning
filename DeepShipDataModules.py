@@ -67,9 +67,7 @@ class DeepShipSegments(Dataset):
             subfolder_path = os.path.join(label_path, subfolder)
             self.folder_lists[split].append((subfolder_path, self.class_mapping[label]))
 
-        # print(f"\n{split.capitalize()} split folders for label '{label}':")
-        # for folder in self.folder_lists[split]:
-        #     print(f"Folder: {folder[0]}, Label: {folder[1]}")
+
 
     def _collect_segments(self):
         for split in self.folder_lists.keys():

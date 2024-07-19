@@ -53,6 +53,7 @@ class EDM(nn.Module):
         
  
     def forward(self, x):    
+        # pdb.set_trace()
         #Compute laplacian pyramid
         x = build_laplacian_pyramid(
             x, max_level=self.max_level, border_type=self.border_type, align_corners=self.align_corners
@@ -65,6 +66,7 @@ class EDM(nn.Module):
     
         # Compute EHD response for the first level (x[1])
         features = self.ehd_layer(x[1])
+        # pdb.set_trace()
         
         # pdb.set_trace()
         spatial_size = features.shape[-2:]
