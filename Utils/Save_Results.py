@@ -52,10 +52,11 @@ def generate_filename_optuna(Network_parameters, split, trial_number):
     else: # KD
         student_model = Network_parameters['student_model']
         teacher_model = Network_parameters['teacher_model']
+        task_flag = Network_parameters['task_flag']
         if Network_parameters['feature_extraction']:
             filename = f"{base_path}/{mode}/{method}/{dataset}/{student_model}_{teacher_model}/{trial_dir}/{split_run}/"
         else:
-            filename = f"{base_path}/{mode}/{method}/{dataset}/{student_model}_{teacher_model}/{trial_dir}/{split_run}/"
+            filename = f"{task_flag}/{base_path}/{mode}/{method}/{dataset}/{student_model}_{teacher_model}/{trial_dir}/{split_run}/"
     
     # Create directory if it does not exist
     if not os.path.exists(filename):
@@ -129,6 +130,7 @@ def generate_filename(Network_parameters,split):
                                                         Network_parameters['teacher_model'],
                                                         split+1)
         else:
+
             filename = '{}/{}/{}/{}/{}_{}/Run_{}/'.format(Network_parameters['folder'],
                                                         Network_parameters['mode'], 
                                                         Network_parameters['method'],
@@ -136,8 +138,6 @@ def generate_filename(Network_parameters,split):
                                                         Network_parameters['student_model'],
                                                         Network_parameters['teacher_model'],
                                                         split+1)
-        
-
         
     # Create directory if it does not exist
     if not os.path.exists(filename):
@@ -148,7 +148,7 @@ def plot_avg_confusion_matrix(cm, classes,
                           normalize=False,
                           title='Confusion matrix',
                           cmap=plt.cm.Blues,
-                          show_percent=True, ax=None,fontsize=12):
+                          show_percent=True, ax=None,fontsize=16):
     """
     This function prints and plots the confusion matrix.
     Normalization can be applied by setting `normalize=True`.
@@ -212,14 +212,23 @@ def plot_avg_confusion_matrix(cm, classes,
     #plt.xlabel('Predicted label')
     plt.tight_layout()
 
-def aggregate_tensorboard_logs(root_dir,save_dir,dataset):
-    aggregated_results = defaultdict(lambda: defaultdict(list))
-    
+
+def aggregate_tensorboard_logs(root_dir, save_dir, dataset):
+    aggregated_results = defaultdict(list)
     # Create save directory if it doesn't exist
-    save_dir = '{}/{}'.format(root_dir,save_dir)
+    save_dir = '{}/{}'.format(root_dir, save_dir)
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
+    # Define the specific metrics to save
+    specific_metrics = [
+        'val_accuracy', 
+        'test_accuracy', 
+        'test_weighted_f1', 
+        'test_weighted_precision', 
+        'test_weighted_recall'
+    ]
+    
     # Traverse through the directory structure
     for run_dir in os.listdir(root_dir):
         run_path = os.path.join(root_dir, run_dir)
@@ -227,8 +236,9 @@ def aggregate_tensorboard_logs(root_dir,save_dir,dataset):
             continue
 
         # Look for event files within each run directory
-        event_file = os.path.join(run_path, 'lightning_logs', 'Val_Test', 'events.out.tfevents.*')
+        event_file = os.path.join(run_path, 'tb_logs', 'model_logs', 'version_0','events.out.tfevents.*')
         event_files = glob.glob(event_file)
+
 
         for event_file in event_files:
             event_acc = EventAccumulator(event_file)
@@ -236,40 +246,49 @@ def aggregate_tensorboard_logs(root_dir,save_dir,dataset):
 
             # Extract scalar data from event file
             tags = event_acc.Tags()['scalars']
-            for tag in tags:
-                if any(phase in tag for phase in ['train', 'val', 'test']):
-                    phase, metric = tag.split('_', 1)
-                    events = event_acc.Scalars(tag)
+
+            for metric in specific_metrics:
+                if metric in tags:
+                    events = event_acc.Scalars(metric)
                     values = [event.value for event in events]
-                    aggregated_results[metric][phase].extend(values)
+                    aggregated_results[metric].extend(values)
 
     # Aggregate metrics
     final_aggregated_results = {}
-    for metric, phases in aggregated_results.items():
-        phase_results = {}
-        for phase, values in phases.items():
-            values = np.array(values)
-            mean = np.mean(values)
-            std = np.std(values)
-            phase_results[phase] = {'mean': mean, 'std': std}
-        final_aggregated_results[metric] = phase_results
-       
-    #Save results in JSON file
-    with open("{}/{}_aggregated_metrics.json".format(save_dir, dataset), "w") as outfile: 
+    text_output = []
+
+    for metric, values in aggregated_results.items():
+        values = np.array(values)
+        mean = np.mean(values)
+        std = np.std(values)
+        final_aggregated_results[metric] = {'mean': mean, 'std': std}
+        text_output.append(f"{metric}: Mean = {mean:.6f}, Std = {std:.6f}")
+
+
+    # Save results in JSON file
+    json_path = "{}/{}_aggregated_specific_metrics.json".format(save_dir, dataset)
+    with open(json_path, "w") as outfile: 
         json.dump(final_aggregated_results, outfile)
+
+    # Save results in text file
+    text_path = "{}/{}_aggregated_specific_metrics.txt".format(save_dir, dataset)
+    with open(text_path, "w") as textfile:
+        textfile.write("\n".join(text_output))
 
     return final_aggregated_results
 
+
 def aggregate_and_visualize_confusion_matrices(root_dir, save_dir, dataset,
-                                               label_names=None, cmap= 'Blues',
-                                               threshold=10,figsize=(15, 10),
-                                               fontsize=24, title=False):
+                                               label_names=None, cmap='Blues',
+                                               threshold=10, figsize=(15, 15),
+                                              fontsize=25, title=False):
+    
+    # pdb.set_trace()
     # Create save directory if it doesn't exist
-    save_dir = '{}/{}'.format(root_dir,save_dir)
+    save_dir = '{}/{}'.format(root_dir, save_dir)
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
-
-    test_aggregated_matrix = None
+        
     aggregated_matrix_list = []
     test_matrix_count = 0
 
@@ -285,28 +304,19 @@ def aggregate_and_visualize_confusion_matrices(root_dir, save_dir, dataset,
             # Read the test matrix
             if 'test' in csv_file:
                 matrix = pd.read_csv(os.path.join(run_path, csv_file), index_col=0).to_numpy()
-                if test_aggregated_matrix is None:
-                    #test_aggregated_matrix = matrix
-                    aggregated_matrix_list.append(matrix[...,np.newaxis])
-                else:
-                    #test_aggregated_matrix += matrix
-                    aggregated_matrix_list.append(matrix[...,np.newaxis])
+                aggregated_matrix_list.append(matrix[..., np.newaxis])
                 test_matrix_count += 1
     
-    #Convert list to numpy array
-    aggregated_matrix_list = np.concatenate(aggregated_matrix_list,axis=-1)
-    test_mean_matrix = np.mean(aggregated_matrix_list,axis=-1)
-    
-    # Generate heatmap
-
-    # Cases: 1) Too many classes, 2) Few classes
-    # If the number of classes is greater than 5, then the heatmap will not display the class names or the values in the boxes
+    # Convert list to numpy array
+    aggregated_matrix_list = np.concatenate(aggregated_matrix_list, axis=-1)
+    test_mean_matrix = np.mean(aggregated_matrix_list, axis=-1)
     
     if title:
         title_name = '{} Confusion Matrix'.format(dataset)
     else:
         title_name = None
-        
+
+
     if label_names is not None and len(label_names) <= threshold:
         plt.figure(figsize=figsize)
         fig, ax = plt.subplots(figsize=figsize)
@@ -321,8 +331,8 @@ def aggregate_and_visualize_confusion_matrices(root_dir, save_dir, dataset,
         plt.figure(figsize=figsize)
         sns.heatmap(test_mean_matrix, cmap=cmap, cbar=True, annot=False)
         plt.title(title_name, fontsize=fontsize)
-        plt.xlabel('Predicted Label', fontsize=fontsize-4)
-        plt.ylabel('True Label', fontsize=fontsize-4)
+        plt.xlabel('Predicted Label', fontsize=fontsize)
+        plt.ylabel('True Label', fontsize=fontsize)
         # Save the heatmap as an image
         plt.savefig(os.path.join(save_dir, 'aggregated_confusion_matrix_'+dataset+'.png'), bbox_inches='tight')
         plt.close()

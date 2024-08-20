@@ -1,13 +1,10 @@
 #!/bin/bash
 
 # Set variables
-OPTIM="Adagrad"
-FOLDER="Saved_Models/student_shuffle/$OPTIM/"
-EPOCH=300
-MODE="student"
+OPTIM="AdamW"
+FOLDER="Saved_Models/HLTDNNLogMel/$OPTIM/"
+EPOCH=150
+mode='student'
+python demo.py --folder $FOLDER --optimizer $OPTIM --num_epochs $EPOCH --mode $mode 
 
-
-
-# First Executable Line
-python3 demo.py --folder $FOLDER --num_epochs $EPOCH --mode $MODE
 

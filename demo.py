@@ -27,6 +27,11 @@ from Datasets.Get_preprocessed_data import process_data
 from Utils.Loss_function import SSTKAD_Loss
 from objective import objective
 from lightning.pytorch.tuner import Tuner
+from thop import profile
+from lightning.pytorch.loggers import TensorBoardLogger
+from Utils.Save_Results import generate_filename, aggregate_tensorboard_logs, aggregate_and_visualize_confusion_matrices
+
+
 # from pytorch_lightning.tuner.tuning import LearningRateFinder
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
@@ -36,15 +41,21 @@ plt.ioff()
 
 
 def set_seeds(seed):
+    # pdb.set_trace()
     torch.manual_seed(seed)
     np.random.seed(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    torch.manual_seed(seed)
 
 def main(Params, optimize=False):
     # if Params['HPRC']:
-    torch.set_float32_matmul_precision('medium')       
+    torch.set_float32_matmul_precision('medium')    
+    fig_size = Params['fig_size']
+    font_size = Params['font_size']
+    plot_name = Params['Dataset'] + ' Test Confusion Matrix'
+    avg_plot_name = Params['Dataset'] + ' Test Average Confusion Matrix'
+
+    
     Dataset = Params['Dataset']
     student_model = Params['student_model'] 
     teacher_model = Params['teacher_model']
@@ -55,11 +66,12 @@ def main(Params, optimize=False):
     mode = Params['mode']
     feat_map_size = Params['feat_map_size']
 
+
     print('Starting Experiments...')
+    best_model_path = ""
     
     for split in range(0, numRuns):
         set_seeds(split)
-        all_val_accs, all_test_accs, all_test_f1s = [], [], []
 
         histogram_layer = HistogramLayer(
             int(num_feature_maps / (feat_map_size * numBins)),
@@ -70,7 +82,19 @@ def main(Params, optimize=False):
         )
 
         filename = generate_filename(Params, split)
-        print(f"Model path: {filename}")
+        logger = TensorBoardLogger(
+            save_dir=os.path.join(filename, "tb_logs"),
+            name="model_logs",
+        )
+        # logger = TensorBoardLogger(filename, default_hp_metric=False, version = 'Training')
+        
+        #Remove past events to conserve memory allocation
+        log_dir = '{}{}/{}'.format(logger.save_dir,logger.name,logger.version)
+        # print(f"Model path: {filename}")
+        files = glob.glob('{}/{}'.format(log_dir,'events.out.tfevents.*'))
+        for f in files:
+            os.remove(f)
+        print("Logger set up.")
 
         
         if Dataset == 'DeepShip':
@@ -89,7 +113,13 @@ def main(Params, optimize=False):
         data_module.setup(stage='test')
         # pdb.set_trace()
         train_loader, val_loader, test_loader = data_module.train_dataloader(), data_module.val_dataloader(), data_module.test_dataloader()
-        # pdb.set_trace()
+        # Get class counts for each split
+        class_counts = data_module.train_dataset.count_classes_per_split()
+        
+        print("Train Split Class Counts:", class_counts['train'])
+        print("Validation Split Class Counts:", class_counts['val'])
+        print("Test Split Class Counts:", class_counts['test'])
+
 
         # print(f"Label distribution in test set: {label_counts}")
         print("Dataloaders Initialized.")
@@ -115,125 +145,145 @@ def main(Params, optimize=False):
         )
         print("Model Initialized.")
 
-        if mode == 'teacher':
+        if args.mode == 'teacher':
+            sub_dir = generate_filename(Params, split)
+            model.remove_PANN_feature_extractor_teacher()
             model_ft = Lightning_Wrapper(
-                model.teacher, Params['num_classes'][Dataset], max_iter=len(train_loader),
-                label_names=Params['class_names'][Dataset]
+                nn.Sequential(model.feature_extractor, model.teacher), Params['num_classes'][Dataset], max_iter=len(train_loader),lr=Params['lr'],
+                label_names=Params['class_names'][Dataset], log_dir =filename,
             )
-        elif mode == 'distillation':
-            # sub_dir = generate_filename_optuna(Params, split, trial.number)
-            checkpt_path = '/home/grads/j/jarin.ritu/Documents/Research/SSTKAD_Lightning/Saved_Models/CNN/Adagrad/teacher/Pretrained/Fine_Tuning/DeepShip/CNN_14/Run_1/checkpoints/best_model_teacher.ckpt'
             
-            best_teacher = Lightning_Wrapper.load_from_checkpoint(
-                checkpt_path,
-                model=model.teacher,
-                num_classes=num_classes, 
-                strict=True
-            )
-            model.teacher = best_teacher.model
+        elif args.mode == 'distillation':
+            # pdb.set_trace()
+            model.remove_PANN_feature_extractor_teacher()
+            #Fine tune teacher on dataset
+            teacher_checkpoint_callback = ModelCheckpoint(filename = 'best_model_teacher',mode='max',
+                                                  monitor='val_accuracy')
+            # model.remove_PANN_feature_extractor_teacher()
+            model_ft = Lightning_Wrapper(nn.Sequential(model.feature_extractor, model.teacher), Params['num_classes'][Dataset],  max_iter=len(train_loader),
+                                                  log_dir = filename, label_names=Params['class_names'][Dataset])
+            
+            #Train teacher
+            print("Setting up teacher trainer...")
+            trainer_teacher = Trainer(callbacks=[EarlyStopping(monitor='val_loss', patience=Params['patience']), teacher_checkpoint_callback,
+                                          TQDMProgressBar(refresh_rate=10)], 
+                              max_epochs= Params['num_epochs'], enable_checkpointing = Params['save_results'], 
+                              default_root_dir = filename,
+                              logger=logger) 
+            
+            
+            print("Teacher trainer set up.")
+            
+            # Start fitting the model
+            print('Training teacher model...')
+            
+            trainer_teacher.fit(model_ft, train_dataloaders = train_loader, 
+                                val_dataloaders = val_loader)
+            print('Training completed.')
+            
+            #Pass fine-tuned teacher to knowledge distillation model
+            sub_dir = generate_filename(Params, split)
+            print(sub_dir)
+            checkpt_path = os.path.join(sub_dir, 'tb_logs/model_logs/version_0/checkpoints/best_model_teacher.ckpt')             
+            best_teacher = Lightning_Wrapper.load_from_checkpoint(checkpt_path,
+                                                                  hparams_file=os.path.join(sub_dir,'tb_logs/model_logs/version_0/checkpoints/hparams.yaml'),
+                                                                  model=nn.Sequential(model.feature_extractor, model.teacher),
+                                                                  num_classes = num_classes, max_iter=len(train_loader),log_dir = filename,
+                                            strict=True)
+            # pdb.set_trace()
+            model.teacher = best_teacher.model[1]
+
+        
+            # Remove feature extraction layers from PANN/TIMM
             model.remove_PANN_feature_extractor()
             model.remove_TIMM_feature_extractor()
             
-            model_ft = Lightning_Wrapper_KD(
-                model, num_classes=num_classes, stats_w=0.41,
-                struct_w=0.47, distill_w=0.79, max_iter=len(train_loader),
-                label_names=Params['class_names'][Dataset], lr=Params['lr'],
-                Params=Params, criterion=SSTKAD_Loss(task_num = 4)
-            )
-        elif mode == 'student':
+            model_ft = Lightning_Wrapper_KD(model, num_classes=Params['num_classes'][Dataset],  max_iter=len(train_loader),
+                                          log_dir = filename, label_names=Params['class_names'][Dataset],
+                                          Params=Params,criterion=SSTKAD_Loss(task_num = 4))        
+        elif args.mode == 'student':
+            sub_dir = generate_filename(Params, split)
             model_ft = Lightning_Wrapper(
                 nn.Sequential(model.feature_extractor, model.student),
                 num_classes=num_classes,  
-                max_iter=len(train_loader), label_names=Params['class_names'][Dataset],
+                max_iter=len(train_loader), log_dir = filename, lr=Params['lr'],label_names=Params['class_names'][Dataset],
             )
         else:
             raise RuntimeError(f'{mode} not implemented')
             
         # model = torch.compile(model_ft, fullgraph=True)
         
-        #checkpoint_callback creates dir for saving best model checkpoints
-        checkpoint_callback = ModelCheckpoint(
-            dirpath=os.path.join(filename, 'checkpoints'),
-            filename='best_model',
-            mode='max',
-            monitor='val_accuracy',
-            save_top_k=1,
-            verbose=True,
-            save_weights_only=True
-        )
+        checkpoint_callback = ModelCheckpoint(filename = 'best_model',mode='max',
+                                              monitor='val_accuracy')
         
-        early_stopping_callback = EarlyStopping(
-            monitor='val_loss',
-            patience=Params['patience'],
-            verbose=True,
-            mode='min'
-        )
         
-        # Set the logger to save logs in the generated filename directory
-        logger = TensorBoardLogger(
-            save_dir=os.path.join(filename, "tb_logs"),
-            name="model_logs",
-        )
-        print("Logger set up.")
+
+
         num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         print(f"Number of parameters: {num_params}")
 
         # Initialize the trainer with the custom learning rate finder callback
-        trainer = Trainer(
-            callbacks=[
-                EarlyStopping(monitor='val_loss', patience=Params['patience']),
-                checkpoint_callback,
-                TQDMProgressBar(refresh_rate=10),
-            ], 
-            max_epochs=Params['num_epochs'], 
-            enable_checkpointing=Params['save_results'], 
-            default_root_dir=filename,
-            logger=logger,
-        )
-        # tuner = Tuner(trainer)
-        # lr_finder = tuner.lr_find(model_ft,train_dataloaders=train_loader, val_dataloaders=val_loader)
-        # # Results can be found in
-        # print(lr_finder.results)
-        
-        # # Plot with
-        # fig = lr_finder.plot(suggest=True)
-        # fig.savefig('lr_finder_plot.png')  # Save the plot to a file
-        # plt.close(fig)  # Close the figure
-        
-        # # Pick point based on plot, or get suggestion
-        # new_lr = lr_finder.suggestion()
-        
-        # # update hparams of the model
-        # model_ft.hparams.lr = new_lr
-        
-        # print(f"Suggested learning rate: {new_lr}")
+        trainer = Trainer(callbacks=[EarlyStopping(monitor='val_loss', patience=Params['patience']), checkpoint_callback,TQDMProgressBar(refresh_rate=100)], 
+                          max_epochs= Params['num_epochs'], enable_checkpointing = Params['save_results'], 
+                          default_root_dir = filename,
+                          logger=logger) 
 
         
         print('Training model...')
         trainer.fit(model_ft, train_dataloaders=train_loader, val_dataloaders=val_loader)
+
+        best_model_path = checkpoint_callback.best_model_path  
+ 
         
 
-        # pdb.set_trace()
-        # # Load the best model checkpoint
-        best_model_path = checkpoint_callback.best_model_path  
-    
-        # best_model = Lightning_Wrapper_KD.load_from_checkpoint(
-        #     checkpoint_path=best_model_path,
-        #     Params=Params,
-        #     model=model,
-        #     num_classes=num_classes,
-        #     Dataset=Dataset
-        # )
-        
+
+        if args.mode == 'teacher':
+            best_model = Lightning_Wrapper.load_from_checkpoint(
+                best_model_path,
+                hparams_file=os.path.join(filename, 'tb_logs/model_logs/version_0/checkpoints/hparams.yaml'),
+                model= nn.Sequential(model.feature_extractor, model.teacher),
+                num_classes=num_classes,max_iter=len(train_loader),
+                log_dir = filename,
+                strict=True
+            )
+        elif args.mode == 'student':
+            best_model = Lightning_Wrapper.load_from_checkpoint(
+                best_model_path,
+                hparams_file=os.path.join(filename, 'tb_logs/model_logs/version_0/checkpoints/hparams.yaml'),
+                model= nn.Sequential(model.feature_extractor, model.student),
+                num_classes=num_classes,max_iter=len(train_loader),
+                log_dir = filename,
+                strict=True
+            )
+        else:            
+            best_model= Lightning_Wrapper_KD.load_from_checkpoint(
+                best_model_path,
+                hparams_file=os.path.join(filename, 'tb_logs/model_logs/version_0/checkpoints/hparams.yaml'),
+                model= model,
+                num_classes=num_classes,max_iter=len(train_loader),
+                log_dir = filename,
+                strict=True
+            )
         print('Testing model...')
-        test_results = trainer.test(model_ft, dataloaders=test_loader,ckpt_path=best_model_path)
+        # val_results = trainer.validate(best_model, dataloaders = val_loader, ckpt_path=best_model_path)        
+        trainer.test(best_model, dataloaders=test_loader,ckpt_path=best_model_path)
+        print('**********Run ' + str(split + 1) + ' ' + student_model + ' Finished**********')
+    print('Getting aggregated results...')
+    sub_dir = os.path.dirname(sub_dir.rstrip('/'))
+    
+    aggregation_folder = 'Aggregated_Results/'
+    aggregate_and_visualize_confusion_matrices(sub_dir, aggregation_folder, 
+                                               dataset=Dataset,label_names=Params['class_names'][Dataset],
+                                               figsize=Params['fig_size'], fontsize=Params['font_size'])
+    aggregate_tensorboard_logs(sub_dir, aggregation_folder,Dataset)
+    print('Aggregated results saved...')
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Run histogram experiments for dataset')
     parser.add_argument('--save_results', default=True, action=argparse.BooleanOptionalAction, help='Save results of experiments (default: True)')
-    parser.add_argument('--folder', type=str, default='Saved_Models/demo_stft/', help='Location to save models')
+    parser.add_argument('--folder', type=str, default='Saved_Models/test2/', help='Location to save models')
     parser.add_argument('--student_model', type=str, default='TDNN', help='Select baseline model architecture')
-    parser.add_argument('--teacher_model', type=str, default='CNN_14', help='Select baseline model architecture')
+    parser.add_argument('--teacher_model', type=str, default='MobileNetV1', help='Select baseline model architecture')
     parser.add_argument('--histogram', default=True, action=argparse.BooleanOptionalAction, help='Flag to use histogram model or baseline global average pooling (GAP), --no-histogram (GAP) or --histogram')
     parser.add_argument('--data_selection', type=int, default=0, help='Dataset selection: See Demo_Parameters for full list of datasets')
     parser.add_argument('-numBins', type=int, default=16, help='Number of bins for histogram layer. Recommended values are 4, 8 and 16. (default: 16)')
@@ -242,17 +292,17 @@ def parse_args():
     parser.add_argument('--train_batch_size', type=int, default=32, help='input batch size for training (default: 128)')
     parser.add_argument('--val_batch_size', type=int, default=32, help='input batch size for validation (default: 512)')
     parser.add_argument('--test_batch_size', type=int, default=32, help='input batch size for testing (default: 256)')
-    parser.add_argument('--num_epochs', type=int, default=2, help='Number of epochs to train each model for (default: 50)')
+    parser.add_argument('--num_epochs', type=int, default=1, help='Number of epochs to train each model for (default: 50)')
     parser.add_argument('--resize_size', type=int, default=256, help='Resize the image before center crop. (default: 256)')
-    parser.add_argument('--lr', type=float, default=0.001, help='learning rate (default: 0.001)')
+    parser.add_argument('--lr', type=float, default=0.0001, help='learning rate (default: 0.001)')
     parser.add_argument('--use-cuda', default=True, action=argparse.BooleanOptionalAction, help='enables CUDA training')
     parser.add_argument('--audio_feature', type=str, default='Log_Mel_Spectrogram', help='Audio feature for extraction')
     parser.add_argument('--optimizer', type=str, default='AdamW', help='Select optimizer')
-    parser.add_argument('--mixup', type=str, default='True', help='Select data augmenter')
-    parser.add_argument('--patience', type=int, default=10, help='Number of epochs to train each model for (default: 50)')
+    parser.add_argument('--ablation', type=str, default='True', help='Select ablation study to be true or false')
+    parser.add_argument('--patience', type=int, default=50, help='Number of epochs to train each model for (default: 50)')
     parser.add_argument('--temperature', type=float, default=2.0, help='Temperature for knowledge distillation')
     parser.add_argument('--alpha', type=float, default=0.5, help='Alpha for knowledge distillation')
-    parser.add_argument('--mode', type=str, choices=['distillation','student', 'teacher'], default='distillation', help='Mode to run the script in: student, teacher, distillation (default: distillation)')
+    parser.add_argument('--mode', type=str, choices=['distillation','student', 'teacher'], default='teacher', help='Mode to run the script in: student, teacher, distillation (default: distillation)')
     parser.add_argument('--HPRC', default=False, action=argparse.BooleanOptionalAction,
                     help='Flag to run on HPRC (default: False)')
     args = parser.parse_args()

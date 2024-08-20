@@ -2,6 +2,7 @@ import os
 import librosa
 import soundfile as sf
 import math
+import pdb
 
 def Generate_Segments(dataset_dir, segments_dir, target_sr=32000, segment_length=3):
     '''
@@ -35,6 +36,7 @@ def Generate_Segments(dataset_dir, segments_dir, target_sr=32000, segment_length
 
                     # Resample to the target sampling rate
                     audio_resampled = librosa.resample(audio, orig_sr=sr, target_sr=target_sr)
+                    # pdb.set_trace()
 
                     # Divide the resampled audio into segments and save them to a folder
                     duration = len(audio_resampled)
@@ -54,6 +56,7 @@ def Generate_Segments(dataset_dir, segments_dir, target_sr=32000, segment_length
 
 
 def process_data(data_dir='./Datasets/DeepShip/', sample_rate=None, segment_length=None):
+    # pdb.set_trace()
     segments_dir = '{}Segments_{}Hz/'.format(data_dir,sample_rate)
 
     # Check if the 'Segments' folder already exists
@@ -67,7 +70,7 @@ def process_data(data_dir='./Datasets/DeepShip/', sample_rate=None, segment_leng
                           segment_length=segment_length)
     else:
         print("Segments folder already exists. Skipping segment generation.")
-    return data_dir
+    return segments_dir
 
 if __name__ == "__main__":
     process_data()

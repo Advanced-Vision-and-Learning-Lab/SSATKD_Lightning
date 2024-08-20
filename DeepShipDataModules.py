@@ -90,15 +90,35 @@ class DeepShipSegments(Dataset):
                     f.write(f"\nFolders in the test set ({len(self.folder_lists['test'])} folders):\n")
                     for folder, label in self.folder_lists['test']:
                         f.write(f"Folder: {folder}, Label: {label}\n")
-                        # print(f"Folder: {folder}, Label: {label}")
+    def count_classes_per_split(self):
+        # Initialize a dictionary to store counts for each split
+        class_counts = {
+            'train': {label: 0 for label in self.class_mapping.values()},
+            'val': {label: 0 for label in self.class_mapping.values()},
+            'test': {label: 0 for label in self.class_mapping.values()}
+        }
+        
+        # Count occurrences of each class in the respective split
+        for split in ['train', 'val', 'test']:
+            for _, label in self.segment_lists[split]:
+                class_counts[split][label] += 1
+        
+        # Convert numeric labels back to class names for readability
+        class_names = {v: k for k, v in self.class_mapping.items()}
+        for split in class_counts:
+            class_counts[split] = {class_names[label]: count for label, count in class_counts[split].items()}
+        
+        return class_counts
 
     def __len__(self):
         return len(self.segment_lists[self.partition])
 
     def __getitem__(self, idx):
-        file_path, label = self.segment_lists[self.partition][idx]    
+        file_path, label = self.segment_lists[self.partition][idx]
+        # print("\nfile path",file_path)
         try:
             sr, signal = wavfile.read(file_path, mmap=False)
+            # print("signal",signal.shape)
         except Exception as e:
             raise RuntimeError(f"Error reading file {file_path}: {e}")
 

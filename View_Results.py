@@ -37,6 +37,11 @@ from DeepShipDataModules import DeepShipDataModule
 from Utils.Lightning_Wrapper import Lightning_Wrapper, Lightning_Wrapper_KD
 from Utils.Loss_function import SSTKAD_Loss
 import pdb
+from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning import Trainer
+from lightning.pytorch.loggers import TensorBoardLogger
+from Utils.Save_Results import generate_filename, aggregate_tensorboard_logs, aggregate_and_visualize_confusion_matrices
+
 
 import os
 from collections import defaultdict
@@ -94,7 +99,7 @@ def main(Params):
     accuracy = np.zeros(NumRuns)
     MCC = np.zeros(NumRuns)
     
-    for split in range(0, 1):
+    for split in range(0, numRuns):
         
        
         #Find directory of results
@@ -113,9 +118,8 @@ def main(Params):
         data_module.prepare_data()
         data_module.setup("fit")
         data_module.setup(stage='test')
-        # pdb.set_trace()
         train_loader, val_loader, test_loader = data_module.train_dataloader(), data_module.val_dataloader(), data_module.test_dataloader()
-        # pdb.set_trace()
+
         
         # #Load model
         histogram_layer = HistogramLayer(int(num_feature_maps / (feat_map_size * numBins)),
@@ -149,25 +153,27 @@ def main(Params):
                 label_names=Params['class_names'][Dataset]
             )
         elif mode == 'distillation':
-            # sub_dir = generate_filename_optuna(Params, split, trial.number)
-            checkpt_path = '/home/grads/j/jarin.ritu/Documents/Research/SSTKAD_Lightning/Saved_Models/CNN/Adagrad/teacher/Pretrained/Fine_Tuning/DeepShip/CNN_14/Run_1/checkpoints/best_model_teacher.ckpt'
+            # pdb.set_trace()
+            model.remove_PANN_feature_extractor_teacher()
+            sub_dir = generate_filename(Params, split)
+            checkpt_path = os.path.join(sub_dir,'tb_logs/model_logs/version_0/checkpoints/best_model_teacher.ckpt')
             
-            best_teacher = Lightning_Wrapper.load_from_checkpoint(
-                checkpt_path,
-                model=model.teacher,
-                num_classes=num_classes, 
-                strict=True
-            )
-            model.teacher = best_teacher.model
+            best_teacher = Lightning_Wrapper.load_from_checkpoint(checkpt_path,
+                                                                  hparams_file=os.path.join(sub_dir,'tb_logs/model_logs/version_0/checkpoints/hparams.yaml'),
+                                                                  model=nn.Sequential(model.feature_extractor, model.teacher),
+                                                                  num_classes = num_classes, max_iter=len(train_loader),
+                                            strict=True)
+            # pdb.set_trace()
+            model.teacher = best_teacher.model[1]
+
+        
+            # Remove feature extraction layers from PANN/TIMM
             model.remove_PANN_feature_extractor()
             model.remove_TIMM_feature_extractor()
             
-            model_ft = Lightning_Wrapper_KD(
-                model, num_classes=num_classes, stats_w=0.41,
-                struct_w=0.47, distill_w=0.79, max_iter=len(train_loader),
-                label_names=Params['class_names'][Dataset], lr=Params['lr'],
-                Params=Params, criterion=SSTKAD_Loss(task_num = 4)
-            )
+            model_ft = Lightning_Wrapper_KD(model, num_classes=Params['num_classes'][Dataset],  max_iter=len(train_loader),
+                                          log_dir = filename, label_names=Params['class_names'][Dataset],
+                                          Params=Params,criterion=SSTKAD_Loss(task_num = 4)) 
         elif mode == 'student':
             model_ft = Lightning_Wrapper(
                 nn.Sequential(model.feature_extractor, model.student),
@@ -176,16 +182,13 @@ def main(Params):
             )
         else:
             raise RuntimeError(f'{mode} not implemented')
-        
+        logger = TensorBoardLogger(filename, version = 'Val_Test', default_hp_metric=False)
         #checkpoint_callback creates dir for saving best model checkpoints
         checkpoint_callback = ModelCheckpoint(
             dirpath=os.path.join(filename, 'checkpoints'),
             filename='best_model',
             mode='max',
             monitor='val_accuracy',
-            save_top_k=1,
-            verbose=True,
-            save_weights_only=True
         )
         
         early_stopping_callback = EarlyStopping(
@@ -195,141 +198,66 @@ def main(Params):
             mode='min'
         )
         # Initialize the trainer with the custom learning rate finder callback
-        trainer = Trainer(
-            callbacks=[
-                EarlyStopping(monitor='val_loss', patience=Params['patience']),
-                checkpoint_callback,
-                TQDMProgressBar(refresh_rate=10),
-            ], 
-            max_epochs=Params['num_epochs'], 
-            enable_checkpointing=Params['save_results'], 
-            default_root_dir=filename,
+        trainer = Trainer(callbacks=[checkpoint_callback], 
+                          enable_checkpointing = Params['save_results'], 
+                          default_root_dir = filename, logger=logger) 
+
+        best_model_path = checkpoint_callback.best_model_path
+        pdb.set_trace()
+
+
+        best_model= Lightning_Wrapper_KD.load_from_checkpoint(
+            best_model_path,
+            hparams_file=os.path.join(filename, 'tb_logs/model_logs/version_0/checkpoints/hparams.yaml'),
+            model= model,
+            num_classes=num_classes,max_iter=len(train_loader),
+            log_dir = filename,
+            strict=True
         )
-
-
-        # pdb.set_trace()
-        # model.load_state_dict(train_dict['best_model_wts'])
-        print('Loading model...')
-        best_model_path = os.path.join(filename,"checkpoints/best_model.ckpt")
-
         print('Testing model...')
-        test_results = trainer.test(model_ft, dataloaders=test_loader,ckpt_path=best_model_path)
+        test_results = trainer.test(best_model, dataloaders=test_loader,ckpt_path=best_model_path)
+
+        # print('Testing model...')
+        # val_results = trainer.validate(best_model, dataloaders = val_loader)
+        # test_results = trainer.test(model_ft, dataloaders=test_loader)
         
-        run_dir = os.path.join(filename,"checkpoints/best_model.ckpt")
-        all_metrics = aggregate_metrics(run_dir)
-        stats = compute_stats(all_metrics)
+        
+        
+    print('Getting aggregated results...')
+    sub_dir = os.path.dirname(sub_dir.rstrip('/'))
+    
+    aggregation_folder = 'Aggregated_Results/'
+    aggregate_and_visualize_confusion_matrices(sub_dir, aggregation_folder, 
+                                               dataset=Dataset,label_names=Params['class_names'][Dataset],
+                                               figsize=Params['fig_size'], fontsize=Params['font_size'])
+    aggregate_tensorboard_logs(sub_dir, aggregation_folder,Dataset)
+    print('Aggregated results saved...')
 
     
-def extract_metrics(log_dir):
-    event_files = [os.path.join(root, file)
-                   for root, _, files in os.walk(log_dir)
-                   for file in files if 'events.out.tfevents' in file]
 
-    if not event_files:
-        print(f"No event files found in {log_dir}.")
-        return {}
 
-    metrics = defaultdict(list)
-    for event_file in event_files:
-        event_acc = EventAccumulator(event_file)
-        try:
-            event_acc.Reload()
-        except Exception as e:
-            print(f"Error loading {event_file}: {e}")
-            continue
-
-        tags = event_acc.Tags()
-        print(f"Tags for {event_file}: {tags}")
-
-        if 'scalars' not in tags:
-            continue
-
-        scalar_tags = tags['scalars']
-        epochs = {}
-        for tag in scalar_tags:
-            events = event_acc.Scalars(tag)
-            if tag == 'epoch':
-                epochs = {e.step: e.value for e in events}
-                break
-
-        if not epochs:
-            print(f"No epoch tag found in {event_file}.")
-            continue
-
-        for tag in scalar_tags:
-            if tag != 'epoch':
-                events = event_acc.Scalars(tag)
-                for e in events:
-                    if e.step in epochs:
-                        epoch = epochs[e.step]
-                        metrics[tag].append((epoch, e.value))
-
-    return metrics
-
-def aggregate_metrics(runs_dirs):
-    all_metrics = defaultdict(list)
-    for run_dir in runs_dirs:
-        print(f"Checking directory: {run_dir}")
-        metrics = extract_metrics(run_dir)
-        if metrics:
-            for key, values in metrics.items():
-                all_metrics[key].append(values)
-    return all_metrics
-def compute_stats(all_metrics):
-    stats = {}
-    for key, values_list in all_metrics.items():
-        all_values = [value for values in values_list for _, value in values]
-        if all_values:
-            mean = np.mean(all_values)
-            std = np.std(all_values)
-            stats[key] = {'mean': mean, 'std': std}
-    return stats
-
-def plot_train_val_metrics(all_metrics, train_metric_name, val_metric_name, title):
-    plt.figure(figsize=(10, 5))
-    found_data = False
-    for run_idx, (train_values, val_values) in enumerate(zip(all_metrics.get(train_metric_name, []), all_metrics.get(val_metric_name, []))):
-        if not train_values or not val_values:
-            print(f"No data for {train_metric_name} or {val_metric_name} in run {run_idx + 1}")
-            continue
-        found_data = True
-        train_epochs = [epoch for epoch, _ in train_values]
-        train_values = [value for _, value in train_values]
-        val_epochs = [epoch for epoch, _ in val_values]
-        val_values = [value for _, value in val_values]
-        plt.plot(train_epochs, train_values, label=f'Train Run {run_idx + 1}')
-        plt.plot(val_epochs, val_values, label=f'Val Run {run_idx + 1}')
-
-    if found_data:
-        plt.xlabel('Epochs')
-        plt.ylabel(title.replace('_', ' ').title())
-        plt.legend()
-        plt.title(f'{title.replace("_", " ").title()} Across Runs')
-        plt.show()
-    else:
-        print(f"No data found for {title}.")
 def parse_args():
     parser = argparse.ArgumentParser(description='Run histogram experiments for dataset')
     parser.add_argument('--save_results', default=True, action=argparse.BooleanOptionalAction, help='Save results of experiments (default: True)')
-    parser.add_argument('--folder', type=str, default='Saved_Models/demo/', help='Location to save models')
+    parser.add_argument('--folder', type=str, default='Saved_Models/bin16/', help='Location to save models')
     parser.add_argument('--student_model', type=str, default='TDNN', help='Select baseline model architecture')
-    parser.add_argument('--teacher_model', type=str, default='CNN_14', help='Select baseline model architecture')
+    parser.add_argument('--teacher_model', type=str, default='MobileNetV1', help='Select baseline model architecture')
     parser.add_argument('--histogram', default=True, action=argparse.BooleanOptionalAction, help='Flag to use histogram model or baseline global average pooling (GAP), --no-histogram (GAP) or --histogram')
     parser.add_argument('--data_selection', type=int, default=0, help='Dataset selection: See Demo_Parameters for full list of datasets')
     parser.add_argument('-numBins', type=int, default=16, help='Number of bins for histogram layer. Recommended values are 4, 8 and 16. (default: 16)')
     parser.add_argument('--feature_extraction', default=False, action=argparse.BooleanOptionalAction, help='Flag for feature extraction. False, train whole model. True, only update fully connected and histogram layers parameters (default: True)')
     parser.add_argument('--use_pretrained', default=True, action=argparse.BooleanOptionalAction, help='Flag to use pretrained model from ImageNet or train from scratch (default: True)')
-    parser.add_argument('--train_batch_size', type=int, default=32, help='input batch size for training (default: 128)')
-    parser.add_argument('--val_batch_size', type=int, default=32, help='input batch size for validation (default: 512)')
-    parser.add_argument('--test_batch_size', type=int, default=32, help='input batch size for testing (default: 256)')
+    parser.add_argument('--train_batch_size', type=int, default=64, help='input batch size for training (default: 128)')
+    parser.add_argument('--val_batch_size', type=int, default=128, help='input batch size for validation (default: 512)')
+    parser.add_argument('--test_batch_size', type=int, default=128, help='input batch size for testing (default: 256)')
     parser.add_argument('--num_epochs', type=int, default=1, help='Number of epochs to train each model for (default: 50)')
     parser.add_argument('--resize_size', type=int, default=256, help='Resize the image before center crop. (default: 256)')
-    parser.add_argument('--lr', type=float, default=1e-3, help='learning rate (default: 0.001)')
+    parser.add_argument('--lr', type=float, default=0.0001, help='learning rate (default: 0.001)')
     parser.add_argument('--use-cuda', default=True, action=argparse.BooleanOptionalAction, help='enables CUDA training')
-    parser.add_argument('--audio_feature', type=str, default='Log_Mel_Spectrogram', help='Audio feature for extraction')
-    parser.add_argument('--optimizer', type=str, default='Adam', help='Select optimizer')
-    parser.add_argument('--mixup', type=str, default='True', help='Select data augmenter')
-    parser.add_argument('--patience', type=int, default=25, help='Number of epochs to train each model for (default: 50)')
+    parser.add_argument('--audio_feature', type=str, default='STFT', help='Audio feature for extraction')
+    parser.add_argument('--optimizer', type=str, default='SGD', help='Select optimizer')
+    parser.add_argument('--ablation', type=str, default='True', help='Select ablation study to be true or false')
+    parser.add_argument('--patience', type=int, default=50, help='Number of epochs to train each model for (default: 50)')
     parser.add_argument('--temperature', type=float, default=2.0, help='Temperature for knowledge distillation')
     parser.add_argument('--alpha', type=float, default=0.5, help='Alpha for knowledge distillation')
     parser.add_argument('--mode', type=str, choices=['distillation','student', 'teacher'], default='distillation', help='Mode to run the script in: student, teacher, distillation (default: distillation)')

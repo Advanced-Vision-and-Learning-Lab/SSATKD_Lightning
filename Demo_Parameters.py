@@ -36,7 +36,7 @@ def Parameters(args):
     data_selection = args.data_selection
     Dataset_names = {0: 'DeepShip'}
     HPRC = args.HPRC
-    mixup = args.mixup
+
 
     
     #Number of bins for histogram layer. Recommended values are 4, 8 and 16.
@@ -172,8 +172,8 @@ def Parameters(args):
                        'DNN': [45,2],'CDM':[3,3],'DTIEM':[3,3],"CustomResNet18WithCDM":[4,4],'CNN_14': [3,3]}
     #Visualization of results parameters
     #Visualization parameters for figures
-    fig_size = 14
-    font_size = 28
+    fig_size = (20,20)
+    font_size = 30
     #12 and 24
     #Flag for TSNE visuals, set to True to create TSNE visual of features
     #Set to false to not generate TSNE visuals
@@ -187,6 +187,7 @@ def Parameters(args):
     
     #Set to True if more than one GPU was used
     Parallelize_model = True
+    task_flag = [True, True, True, True]
     
     ######## ONLY CHANGE PARAMETERS ABOVE ########
     if feature_extraction:
@@ -198,18 +199,28 @@ def Parameters(args):
     else: 
         model = 'Scratch'
         
+
+    
+        
+            
+        
     
     
     #Location of texture datasets
     Data_dirs = {'DeepShip': './Datasets/DeepShip/Segments/'}
-    segment_length = 3
+    segment_length = 5
     sample_rate =32000
     
     class_names = {'DeepShip':['Cargo', 'Passengership', 'Tanker', 'Tug']}
+
     
     #ResNet models to use for each dataset
     student_model = args.student_model
     teacher_model = args.teacher_model
+    ablation = args.ablation
+    
+    # if ablation:
+    #     folder_name = 'task_flag'
     
     patience = args.patience
     temperature = args.temperature
@@ -227,7 +238,7 @@ def Parameters(args):
     TDNN_feats = {'DeepShip': 1}
     TDDN_feats_teacher ={'DeepShip': 3,
               'AudioMNIST':3}
-    window_length = {'DeepShip': 250,
+    window_length = {'DeepShip': 512,
           'AudioMNIST': 83
         }
     hop_length = {'DeepShip': 64,
@@ -243,18 +254,16 @@ def Parameters(args):
     else:
         audio_features = False
     
-    train_split=0.7
-    val_split=0.15
-    test_split=0.15
+
     Hist_model_name = 'Hist{}_{}'.format(student_model,numBins)
     Hist_model_name_teacher = 'Hist{}_{}'.format(teacher_model,numBins)
     
     #Return dictionary of parameters
     Params = {'save_results': save_results,'folder': folder,
                           'histogram': histogram,'Dataset': Dataset, 'data_dir': data_dir,'segment_length':segment_length,'sample_rate':sample_rate,
-                          'optimizer': optimizer,'HPRC':HPRC,'train_split':train_split,'val_split':val_split,'test_split':test_split,
+                          'optimizer': optimizer,'HPRC':HPRC,
                           'num_workers': num_workers, 'method': method,'lr': lr,
-                          'step_size': step_size,'class_names':class_names,
+                          'step_size': step_size,'class_names':class_names,'task_flag':task_flag,'ablation':ablation,
                           'gamma': gamma, 'batch_size' : batch_size, 
                           'num_epochs': num_epochs, 'model':model,
                           'padding': padding, 
@@ -267,7 +276,7 @@ def Parameters(args):
                           'Splits': Splits, 'feature_extraction': feature_extraction,'use_pretrained': use_pretrained,
                           'hist_model': Hist_model_name, 'hist_model_teacher':Hist_model_name_teacher,'use_pretrained': use_pretrained,
                           'add_bn': add_bn, 'pin_memory': pin_memory, 'scale': scale,
-                          'TSNE_visual': TSNE_visual,'mixup':mixup,
+                          'TSNE_visual': TSNE_visual,
                           'Parallelize': Parallelize_model,
                           'Num_TSNE_images': Num_TSNE_images,'fig_size': fig_size,
                           'font_size': font_size, 'feature': feature, 

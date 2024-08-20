@@ -26,7 +26,7 @@ def list_all_tags(logdir):
     return tags_found
 
 # List and print all tags
-log_dir = '/home/grads/j/jarin.ritu/Documents/Research/SSTKAD_Lightning/Saved_Models/loss_test_SGD/Adagrad/distillation/Fine_Tuning/DeepShip/TDNN_CNN_14/Run_1/tb_logs/model_logs/run_1'
+log_dir = '/home/grads/j/jarin.ritu/Documents/Research/SSTKAD_Lightning/Saved_Models/AdamW0.001CNN14_3runs/Adagrad/teacher/Pretrained/Fine_Tuning/DeepShip/CNN_14/Run_2/tb_logs/model_logs/version_0'
 tags_found = list_all_tags(log_dir)
 print("\nTags found in the log files:")
 for tag in tags_found:

@@ -1345,10 +1345,130 @@ class Cnn14_emb32(nn.Module):
         return output_dict
 
 
-class MobileNetV1(nn.Module):
-    def __init__(self, sample_rate, window_size, hop_size, mel_bins, fmin,
-                 fmax, classes_num):
+# class MobileNetV1(nn.Module):
+#     def __init__(self, sample_rate, window_size, hop_size, mel_bins, fmin,
+#                  fmax, classes_num):
 
+#         super(MobileNetV1, self).__init__()
+
+#         window = 'hann'
+#         center = True
+#         pad_mode = 'reflect'
+#         ref = 1.0
+#         amin = 1e-10
+#         top_db = None
+
+#         # Spectrogram extractor
+#         self.spectrogram_extractor = Spectrogram(n_fft=window_size, hop_length=hop_size,
+#                                                  win_length=window_size, window=window, center=center, pad_mode=pad_mode,
+#                                                  freeze_parameters=True)
+
+#         # Logmel feature extractor
+#         self.logmel_extractor = LogmelFilterBank(sr=sample_rate, n_fft=window_size,
+#                                                  n_mels=mel_bins, fmin=fmin, fmax=fmax, ref=ref, amin=amin, top_db=top_db,
+#                                                  freeze_parameters=True)
+
+#         # Spec augmenter
+#         self.spec_augmenter = SpecAugmentation(time_drop_width=64, time_stripes_num=2,
+#                                                freq_drop_width=8, freq_stripes_num=2)
+
+#         self.bn0 = nn.BatchNorm2d(64)
+
+#         def conv_bn(inp, oup, stride):
+#             _layers = [
+#                 nn.Conv2d(inp, oup, 3, 1, 1, bias=False),
+#                 nn.AvgPool2d(stride),
+#                 nn.BatchNorm2d(oup),
+#                 nn.ReLU(inplace=True)
+#             ]
+#             _layers = nn.Sequential(*_layers)
+#             init_layer(_layers[0])
+#             init_bn(_layers[2])
+#             return _layers
+
+#         def conv_dw(inp, oup, stride):
+#             _layers = [
+#                 nn.Conv2d(inp, inp, 3, 1, 1, groups=inp, bias=False),
+#                 nn.AvgPool2d(stride),
+#                 nn.BatchNorm2d(inp),
+#                 nn.ReLU(inplace=True),
+#                 nn.Conv2d(inp, oup, 1, 1, 0, bias=False),
+#                 nn.BatchNorm2d(oup),
+#                 nn.ReLU(inplace=True)
+#             ]
+#             _layers = nn.Sequential(*_layers)
+#             init_layer(_layers[0])
+#             init_bn(_layers[2])
+#             init_layer(_layers[4])
+#             init_bn(_layers[5])
+#             return _layers
+
+#         self.conv1 = conv_bn(1, 32, 2)
+#         self.conv2 = conv_dw(32, 64, 1)
+#         self.rest_features = nn.Sequential(
+#             conv_dw(64, 128, 2),
+#             conv_dw(128, 128, 1),
+#             conv_dw(128, 256, 2),
+#             conv_dw(256, 256, 1),
+#             conv_dw(256, 512, 2),
+#             conv_dw(512, 512, 1),
+#             conv_dw(512, 512, 1),
+#             conv_dw(512, 512, 1),
+#             conv_dw(512, 512, 1),
+#             conv_dw(512, 512, 1),
+#             conv_dw(512, 1024, 2),
+#             conv_dw(1024, 1024, 1)
+#         )
+
+#         self.fc1 = nn.Linear(1024, 1024, bias=True)
+#         self.fc_audioset = nn.Linear(1024, classes_num, bias=True)
+
+#         self.init_weights()
+
+#     def init_weights(self):
+#         init_bn(self.bn0)
+#         init_layer(self.fc1)
+#         init_layer(self.fc_audioset)
+
+#     def forward(self, input, mixup_lambda=None):
+#         """
+#         Input: (batch_size, data_length)"""
+
+#         # (batch_size, 1, time_steps, freq_bins)
+#         x = self.spectrogram_extractor(input)
+#         x = self.logmel_extractor(x)    # (batch_size, 1, time_steps, mel_bins)
+
+#         x = x.transpose(1, 3)
+#         x = self.bn0(x)
+#         x = x.transpose(1, 3)
+
+#         if self.training:
+#             x = self.spec_augmenter(x)
+
+#         # Mixup on spectrogram
+#         if self.training and mixup_lambda is not None:
+#             x = do_mixup(x, mixup_lambda)
+
+#         x = self.conv1(x)
+#         xx = self.conv2(x)
+#         x = self.rest_features(xx)
+#         x = torch.mean(x, dim=3)
+
+#         (x1, _) = torch.max(x, dim=2)
+#         x2 = torch.mean(x, dim=2)
+#         x = x1 + x2
+#         x = F.dropout(x, p=0.5, training=self.training)
+#         x = F.relu_(self.fc1(x))
+#         embedding = F.dropout(x, p=0.5, training=self.training)
+
+#         output = self.fc_audioset(embedding)
+
+#         return xx, output
+
+class MobileNetV1(nn.Module):
+    def __init__(self, sample_rate, window_size, hop_size, mel_bins, fmin, 
+        fmax, classes_num):
+        
         super(MobileNetV1, self).__init__()
 
         window = 'hann'
@@ -1359,28 +1479,28 @@ class MobileNetV1(nn.Module):
         top_db = None
 
         # Spectrogram extractor
-        self.spectrogram_extractor = Spectrogram(n_fft=window_size, hop_length=hop_size,
-                                                 win_length=window_size, window=window, center=center, pad_mode=pad_mode,
-                                                 freeze_parameters=True)
+        self.spectrogram_extractor = Spectrogram(n_fft=window_size, hop_length=hop_size, 
+            win_length=window_size, window=window, center=center, pad_mode=pad_mode, 
+            freeze_parameters=True)
 
         # Logmel feature extractor
-        self.logmel_extractor = LogmelFilterBank(sr=sample_rate, n_fft=window_size,
-                                                 n_mels=mel_bins, fmin=fmin, fmax=fmax, ref=ref, amin=amin, top_db=top_db,
-                                                 freeze_parameters=True)
+        self.logmel_extractor = LogmelFilterBank(sr=sample_rate, n_fft=window_size, 
+            n_mels=mel_bins, fmin=fmin, fmax=fmax, ref=ref, amin=amin, top_db=top_db, 
+            freeze_parameters=True)
 
         # Spec augmenter
-        self.spec_augmenter = SpecAugmentation(time_drop_width=64, time_stripes_num=2,
-                                               freq_drop_width=8, freq_stripes_num=2)
+        self.spec_augmenter = SpecAugmentation(time_drop_width=64, time_stripes_num=2, 
+            freq_drop_width=8, freq_stripes_num=2)
 
         self.bn0 = nn.BatchNorm2d(64)
 
         def conv_bn(inp, oup, stride):
             _layers = [
-                nn.Conv2d(inp, oup, 3, 1, 1, bias=False),
-                nn.AvgPool2d(stride),
-                nn.BatchNorm2d(oup),
+                nn.Conv2d(inp, oup, 3, 1, 1, bias=False), 
+                nn.AvgPool2d(stride), 
+                nn.BatchNorm2d(oup), 
                 nn.ReLU(inplace=True)
-            ]
+                ]
             _layers = nn.Sequential(*_layers)
             init_layer(_layers[0])
             init_bn(_layers[2])
@@ -1388,14 +1508,14 @@ class MobileNetV1(nn.Module):
 
         def conv_dw(inp, oup, stride):
             _layers = [
-                nn.Conv2d(inp, inp, 3, 1, 1, groups=inp, bias=False),
-                nn.AvgPool2d(stride),
-                nn.BatchNorm2d(inp),
-                nn.ReLU(inplace=True),
-                nn.Conv2d(inp, oup, 1, 1, 0, bias=False),
-                nn.BatchNorm2d(oup),
+                nn.Conv2d(inp, inp, 3, 1, 1, groups=inp, bias=False), 
+                nn.AvgPool2d(stride), 
+                nn.BatchNorm2d(inp), 
+                nn.ReLU(inplace=True), 
+                nn.Conv2d(inp, oup, 1, 1, 0, bias=False), 
+                nn.BatchNorm2d(oup), 
                 nn.ReLU(inplace=True)
-            ]
+                ]
             _layers = nn.Sequential(*_layers)
             init_layer(_layers[0])
             init_bn(_layers[2])
@@ -1403,10 +1523,10 @@ class MobileNetV1(nn.Module):
             init_bn(_layers[5])
             return _layers
 
-        self.conv1 = conv_bn(1, 32, 2)
-        self.conv2 = conv_dw(32, 64, 1)
-        self.rest_features = nn.Sequential(
-            conv_dw(64, 128, 2),
+        self.features = nn.Sequential(
+            conv_bn(  1,  32, 2), 
+            conv_dw( 32,  64, 1),
+            conv_dw( 64, 128, 2),
             conv_dw(128, 128, 1),
             conv_dw(128, 256, 2),
             conv_dw(256, 256, 1),
@@ -1417,8 +1537,7 @@ class MobileNetV1(nn.Module):
             conv_dw(512, 512, 1),
             conv_dw(512, 512, 1),
             conv_dw(512, 1024, 2),
-            conv_dw(1024, 1024, 1)
-        )
+            conv_dw(1024, 1024, 1))
 
         self.fc1 = nn.Linear(1024, 1024, bias=True)
         self.fc_audioset = nn.Linear(1024, classes_num, bias=True)
@@ -1429,42 +1548,44 @@ class MobileNetV1(nn.Module):
         init_bn(self.bn0)
         init_layer(self.fc1)
         init_layer(self.fc_audioset)
-
+ 
     def forward(self, input, mixup_lambda=None):
         """
         Input: (batch_size, data_length)"""
 
-        # (batch_size, 1, time_steps, freq_bins)
-        x = self.spectrogram_extractor(input)
+        x = self.spectrogram_extractor(input)   # (batch_size, 1, time_steps, freq_bins)
         x = self.logmel_extractor(x)    # (batch_size, 1, time_steps, mel_bins)
-
+        
         x = x.transpose(1, 3)
         x = self.bn0(x)
         x = x.transpose(1, 3)
-
+        
         if self.training:
             x = self.spec_augmenter(x)
 
         # Mixup on spectrogram
         if self.training and mixup_lambda is not None:
             x = do_mixup(x, mixup_lambda)
-
-        x = self.conv1(x)
-        xx = self.conv2(x)
-        x = self.rest_features(xx)
+        
+        
+        x = self.features[0](x)
+        xx = self.features[1](x)
+        x = self.features[2:](xx)
         x = torch.mean(x, dim=3)
-
+        
         (x1, _) = torch.max(x, dim=2)
         x2 = torch.mean(x, dim=2)
         x = x1 + x2
         x = F.dropout(x, p=0.5, training=self.training)
         x = F.relu_(self.fc1(x))
         embedding = F.dropout(x, p=0.5, training=self.training)
-
+        
         output = self.fc_audioset(embedding)
+        
+        #clipwise_output = torch.sigmoid(self.fc_audioset(x))
+        #output_dict = {'clipwise_output': clipwise_output, 'embedding': embedding}
 
         return xx, output
-
 
 class InvertedResidual(nn.Module):
     def __init__(self, inp, oup, stride, expand_ratio):
@@ -2167,6 +2288,7 @@ class Res1dNet31(nn.Module):
         init_layer(self.fc_audioset)
 
     def forward(self, input, mixup_lambda=None):
+
         """
         Input: (batch_size, data_length)"""
 
@@ -2435,6 +2557,7 @@ class Wavegram_Logmel_Cnn14(nn.Module):
         init_layer(self.fc_audioset)
 
     def forward(self, input, mixup_lambda=None):
+        # pdb.set_trace()
         """
         Input: (batch_size, data_length)"""
 
@@ -2448,9 +2571,11 @@ class Wavegram_Logmel_Cnn14(nn.Module):
 
         # Log mel spectrogram
         # (batch_size, 1, time_steps, freq_bins)
+        print("x before spectrogram_extractor",input.shape)
         x = self.spectrogram_extractor(input)
+        print("x before logmel_extractor",x.shape)
         x = self.logmel_extractor(x)    # (batch_size, 1, time_steps, mel_bins)
-
+        print("x before transpose",x.shape)
         x = x.transpose(1, 3)
         x = self.bn0(x)
         x = x.transpose(1, 3)

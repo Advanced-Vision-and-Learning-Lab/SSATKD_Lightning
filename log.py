@@ -143,7 +143,7 @@ def extract_metrics(log_dir):
             continue
 
         tags = event_acc.Tags()
-        print(f"Tags for {event_file}: {tags}")
+        # print(f"Tags for {event_file}: {tags}")
 
         if 'scalars' not in tags:
             continue
@@ -173,7 +173,7 @@ def extract_metrics(log_dir):
 def aggregate_metrics(runs_dirs):
     all_metrics = defaultdict(list)
     for run_dir in runs_dirs:
-        print(f"Checking directory: {run_dir}")
+        # print(f"Checking directory: {run_dir}")
         metrics = extract_metrics(run_dir)
         if metrics:
             for key, values in metrics.items():
@@ -190,67 +190,61 @@ def compute_stats(all_metrics):
             stats[key] = {'mean': mean, 'std': std}
     return stats
 
-def plot_train_val_metrics(all_metrics, train_metric_name, val_metric_name, title):
-    plt.figure(figsize=(10, 5))
-    found_data = False
-    for run_idx, (train_values, val_values) in enumerate(zip(all_metrics.get(train_metric_name, []), all_metrics.get(val_metric_name, []))):
+
+
+def plot_metrics_for_each_run(all_metrics, metric_name_pairs, run_index):
+    for train_metric_name, val_metric_name, title in metric_name_pairs:
+        plt.figure(figsize=(10, 5))
+        train_values = all_metrics.get(train_metric_name, [])[run_index]
+        val_values = all_metrics.get(val_metric_name, [])[run_index]
+        
         if not train_values or not val_values:
-            print(f"No data for {train_metric_name} or {val_metric_name} in run {run_idx + 1}")
+            print(f"No data for {train_metric_name} or {val_metric_name} in run {run_index + 1}")
             continue
-        found_data = True
+
         train_epochs = [epoch for epoch, _ in train_values]
         train_values = [value for _, value in train_values]
         val_epochs = [epoch for epoch, _ in val_values]
         val_values = [value for _, value in val_values]
-        plt.plot(train_epochs, train_values, label=f'Train Run {run_idx + 1}')
-        plt.plot(val_epochs, val_values, label=f'Val Run {run_idx + 1}')
 
-    if found_data:
+        plt.plot(train_epochs, train_values, label='Train')
+        plt.plot(val_epochs, val_values, label='Val')
         plt.xlabel('Epochs')
         plt.ylabel(title.replace('_', ' ').title())
         plt.legend()
-        plt.title(f'{title.replace("_", " ").title()} Across Runs')
+        plt.title(f'{title.replace("_", " ").title()} for Run {run_index + 1}')
         plt.show()
-    else:
-        print(f"No data found for {title}.")
-
+        
 # Example usage:
 runs_dirs = [
-    '/home/grads/j/jarin.ritu/Documents/Research/SSTKAD_Lightning/Saved_Models/AdamW0.0001HLTDNN_3runs/Adagrad/student/Fine_Tuning/DeepShip/TDNN/Run_3/tb_logs/model_logs/version_0'
-
+    '/home/grads/j/jarin.ritu/Documents/Research/SSTKAD_Lightning/Saved_Models/confusion_bin8/AdamW/distillation/Fine_Tuning/DeepShip/TDNN_MobileNetV1/Run_1/tb_logs/model_logs/version_0',
+    '/home/grads/j/jarin.ritu/Documents/Research/SSTKAD_Lightning/Saved_Models/confusion_bin8/AdamW/distillation/Fine_Tuning/DeepShip/TDNN_MobileNetV1/Run_2/tb_logs/model_logs/version_0',
+    '/home/grads/j/jarin.ritu/Documents/Research/SSTKAD_Lightning/Saved_Models/confusion_bin8/AdamW/distillation/Fine_Tuning/DeepShip/TDNN_MobileNetV1/Run_3/tb_logs/model_logs/version_0'
 ]
-
-# runs_dirs = [
-#     '/home/grads/j/jarin.ritu/Documents/Research/SSTKAD_Lightning/Saved_Models/CNN_3_Runs/Adagrad/teacher/Pretrained/Fine_Tuning/DeepShip/CNN_14/Run_2/tb_logs/model_logs/run_2'
-# ]
-
 all_metrics = aggregate_metrics(runs_dirs)
 stats = compute_stats(all_metrics)
 
-# Print detailed metrics for each run
-for metric_name, runs_values in all_metrics.items():
-    print(f"\nMetric: {metric_name}")
-    for run_idx, values in enumerate(runs_values):
-        print(f" Run {run_idx + 1}:")
-        for epoch, value in values:
-            print(f"  Epoch {epoch}: {value}")
 
 # Print aggregated statistics
 print("\nAggregated Metrics:")
 for key, stat in stats.items():
     print(f"{key}: mean = {stat['mean']}, std = {stat['std']}")
 
-# Define metric name mappings
+# Define metric name mappings for kd experiment
 loss_metrics = [
     ('classification_loss', 'val_classification_loss', 'Classification Loss'),
     ('distillation_loss', 'val_distillation_loss', 'Distillation Loss'),
     ('struct_loss', 'val_struct_loss', 'Struct Loss'),
     ('stats_loss', 'val_stats_loss', 'Stats Loss')
 ]
+# loss_metrics = [
+#     ('train_loss', 'val_loss', 'Loss'),
+#     ('train_accuracy', 'val_accuracy', 'Accuracy')
+# ]
+# Plot the metrics for each run separately
+for run_index in range(len(runs_dirs)):
+    plot_metrics_for_each_run(all_metrics, loss_metrics, run_index)
 
-# Plot the metrics
-for train_metric, val_metric, title in loss_metrics:
-    plot_train_val_metrics(all_metrics, train_metric, val_metric, title)
 
 
 

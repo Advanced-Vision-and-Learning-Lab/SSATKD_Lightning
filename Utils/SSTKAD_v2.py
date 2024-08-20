@@ -30,6 +30,7 @@ class SSTKAD(nn.Module):
         #TBD, add 1x1 convolution
         #Read channels from second layer of student autonomously
         self.feature_reduce = nn.Conv2d(64, 16,1)
+        self.relu = nn.ReLU()
         
     def set_parameter_requires_grad(self):
         
@@ -53,6 +54,14 @@ class SSTKAD(nn.Module):
         
         #Freeze teacher network
         self.set_parameter_requires_grad()
+    def remove_PANN_feature_extractor_teacher(self):
+        #Remove feature extract layers from PANN after intial fine tuning
+        #Remove feature layers from PANNs
+        self.teacher.spectrogram_extractor = nn.Identity()
+        self.teacher.logmel_extractor = nn.Identity()
+        self.teacher.spec_augmenter = nn.Identity()
+        self.teacher.bn0 = nn.Identity()
+        
         
     def remove_TIMM_feature_extractor(self):
         
@@ -62,9 +71,9 @@ class SSTKAD(nn.Module):
         
         #Freeze teacher network
         self.set_parameter_requires_grad()
-        
-    def forward(self, x):
 
+    def forward(self, x):
+        # pdb.set_trace()
         
         #Compute spectrogram features using feature layer
         x = self.feature_extractor(x)
@@ -75,6 +84,7 @@ class SSTKAD(nn.Module):
         
         #Match channels and spatial dimension of student and teacher
         feats_teacher = self.feature_reduce(feats_teacher)
+        feats_teacher = self.relu(feats_teacher)
         
         
         # pdb.set_trace()

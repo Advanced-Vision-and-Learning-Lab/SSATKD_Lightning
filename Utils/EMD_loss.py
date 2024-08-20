@@ -4,6 +4,30 @@ import torch
 import pdb
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# class EarthMoversDistanceLoss(nn.Module):
+#     def __init__(self):
+#         super().__init__()
+
+#     def forward(self, x, y,x_weights,y_weights):
+#         # pdb.set_trace()
+        
+#         # # input has dims: (Batch x Bins)
+#         # bins = x.size(1)
+#         # r = torch.arange(bins)
+#         # s, t = torch.meshgrid(r, r)
+#         # tt = (t >= s).float().to(device)
+        
+
+#         cdf_student = torch.cumsum(x,dim=1)
+#         cdf_teacher = torch.cumsum(y,dim=1)
+
+#         # cdf_x = torch.matmul(x, tt.float())
+#         # cdf_y = torch.matmul(y, tt.float())
+
+
+#         return (x_weights*y_weights*torch.sum(((cdf_student - cdf_teacher)**2),axis=1)).mean()
+    
+    
 class EarthMoversDistanceLoss(nn.Module):
     def __init__(self):
         super().__init__()
@@ -17,14 +41,15 @@ class EarthMoversDistanceLoss(nn.Module):
         # s, t = torch.meshgrid(r, r)
         # tt = (t >= s).float().to(device)
         
+
         cdf_student = torch.cumsum(x,dim=1)
         cdf_teacher = torch.cumsum(y,dim=1)
 
         # cdf_x = torch.matmul(x, tt.float())
         # cdf_y = torch.matmul(y, tt.float())
 
-    
         return torch.sum(((cdf_student - cdf_teacher)**2),axis=1).mean()
+
 
 
 class MutualInformationLoss(nn.Module):
@@ -91,6 +116,8 @@ class EMDLoss2D(nn.Module):
 
         # Calculate the EMD by summing the weighted absolute differences between the CDFs
         emd = torch.sum(ground_distance * torch.abs(cdf_pred.unsqueeze(-1) - cdf_target.unsqueeze(-3)), dim=(-1, -2))
+        
+        # emd = torch.sum(ground_distance * (cdf_pred.unsqueeze(-1) - cdf_target.unsqueeze(-3))**2, dim=(-1, -2))
 
         return torch.mean(emd)
     

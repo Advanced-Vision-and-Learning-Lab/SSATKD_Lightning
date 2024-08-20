@@ -24,7 +24,6 @@ class QCO_2d(nn.Module):
         self.size_w = int(W / self.scale)
         x_ave = F.adaptive_avg_pool2d(x, (self.scale, self.scale)) #Global avg pooled feature Cx1x1
         x_ave_up = F.adaptive_avg_pool2d(x_ave, (H, W))
-    
         cos_sim = (F.normalize(x_ave_up, dim=1) * F.normalize(x, dim=1)).sum(1)
         cos_sim = cos_sim.unsqueeze(1) 
         cos_sim = cos_sim.reshape(N, 1, self.scale, self.size_h, self.scale, self.size_w)
@@ -41,16 +40,11 @@ class QCO_2d(nn.Module):
         q_levels = torch.arange(self.level_num).float().cuda()
         q_levels = q_levels.expand(N, self.scale*self.scale, self.level_num)
         q_levels =  (2 * q_levels + 1) / (2 * self.level_num) * (cos_sim_max - cos_sim_min) + cos_sim_min #Rescale q_levels to be in the range [cos_sim_min, cos_sim_max]
+        
+        
+        
         # q_levels_inter = q_levels[:, :, 1] - q_levels[:, :, 0] #Compute the quantization interval for each quantization level.
         # q_levels_inter = q_levels_inter.unsqueeze(1).unsqueeze(-1) #(N, 1, self.scale*self.scale, 1)
-        cos_sim = cos_sim.unsqueeze(-1) #(N, self.size_h*self.size_w, self.scale*self.scale, 1)
-        q_levels = q_levels.unsqueeze(1) 
-        sigma = 1/( self.level_num/2)
-        # # quant = torch.exp(-((cos_sim.unsqueeze(-1).unsqueeze(1) - q_levels.unsqueeze(-1).unsqueeze(-1))**2) * (2 *sigma**2))
-        
-        
-        quant = torch.exp(-(1/sigma**2) * ((cos_sim.unsqueeze(-1).unsqueeze(1) - q_levels.unsqueeze(-1).unsqueeze(-1))**2))
-        
         # q_levels_inter = q_levels[:, :, 1] - q_levels[:, :, 0] 
         # q_levels_inter = q_levels_inter.unsqueeze(1).unsqueeze(-1) 
         # cos_sim = cos_sim.unsqueeze(-1) 
@@ -58,6 +52,16 @@ class QCO_2d(nn.Module):
         # quant = 1 - torch.abs(q_levels - cos_sim) 
         # quant = quant * (quant > (1 - q_levels_inter)) 
         
+        
+
+        
+        
+        cos_sim = cos_sim.unsqueeze(-1) #(N, self.size_h*self.size_w, self.scale*self.scale, 1)
+        q_levels = q_levels.unsqueeze(1) 
+        sigma = 1/( self.level_num/2)
+        quant = torch.exp(-(1/sigma**2) * ((cos_sim.unsqueeze(-1).unsqueeze(1) - q_levels.unsqueeze(-1).unsqueeze(-1))**2))
+        
+        # pdb.set_trace()
         
         quant = quant.view([N, self.size_h, self.size_w, self.scale*self.scale, self.level_num]) 
 
@@ -88,5 +92,6 @@ class QCO_2d(nn.Module):
         
         # pdb.set_trace()
         # sta = sta.reshape(N, 3, self.scale * self.scale, -1)
+        # print("sta", sta)
         return sta
     
