@@ -95,3 +95,29 @@ class QCO_2d(nn.Module):
         # print("sta", sta)
         return sta
     
+    
+# Example to plot co occurance matrices    
+# # Creating a 4x4 grid of subplots since the shape of test is (4, 4, 500, 60)
+# fig, ax = plt.subplots(4, 4, figsize=(12, 12))  # Adjust the size as needed
+
+# # Setting the font size for labels and titles
+# font_size = 12
+
+# # Loop through each subplot and visualize the data
+# for i in range(4):
+#     for j in range(4):
+#         # Store the imshow object in 'im' to later use for colorbar
+#         im = ax[i, j].imshow(test[i, j], aspect='auto', cmap='viridis')
+#         ax[i, j].set_title(f'Qn-Map ({i+1},{j+1})', fontsize=font_size)  # Add subplot title
+
+#         # Simplified axis labels
+#         ax[i, j].set_xlabel(f'Qn 1', fontsize=font_size)  # Set X-axis label
+#         ax[i, j].set_ylabel(f'Qn {j+1}', fontsize=font_size)  # Set Y-axis label
+
+#         ax[i, j].tick_params(axis='both', labelsize=font_size)  # Increase font size for ticks
+
+#         # Add a colorbar for each subplot
+#         fig.colorbar(im, ax=ax[i, j])
+
+# plt.tight_layout()
+# plt.show()

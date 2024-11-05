@@ -39,7 +39,6 @@ class EDM(nn.Module):
             self.weighted_sum = nn.Conv2d(in_channels*self.ehd_layer.num_orientations,
                                           in_channels,groups=self.ehd_layer.num_orientations,kernel_size=3, bias=False)
             self.out_channels = self.in_channels * (self.max_level - 1)
-            
         elif self.fusion == 'max':
             self.weighted_sum = nn.Identity()
             self.out_channels = self.in_channels * (self.max_level - 1)
@@ -58,6 +57,8 @@ class EDM(nn.Module):
         x = build_laplacian_pyramid(
             x, max_level=self.max_level, border_type=self.border_type, align_corners=self.align_corners
         )
+        pdb.set_trace()
+
         # # Compute EHD response for the second pyramid level (x[2])
         # spatial_features = self.ehd_layer(x[2])
         
@@ -66,19 +67,11 @@ class EDM(nn.Module):
     
         # Compute EHD response for the first level (x[1])
         features = self.ehd_layer(x[1])
-        # pdb.set_trace()
-        
-        # pdb.set_trace()
         spatial_size = features.shape[-2:]
         
-        # # Resize x[1] to the spatial size of x[2]
-        # features = nn.functional.interpolate(features, size=spatial_size, mode="bilinear", align_corners=False)
     
         # Initialize the concatenated features with the resized features for x[1]
-        features = [features]
-        # self.ehd_layer.visualize_feature_maps()
-        # features = [features, spatial_features]
-        
+        features = [features] 
         resize_feats = PadTo((spatial_size[0],spatial_size[1]),pad_mode='constant')
     
         # Iterate through the pyramid levels starting from x[2]
@@ -97,21 +90,83 @@ class EDM(nn.Module):
     
         # Concatenate all features along the channel dimension
         features = torch.cat(features, dim=1)
-    
+
         return features
 
 
 
-# # Example usage
-# if __name__ == "__main__":
-#     # Create a sample image tensor (batch_size=1, channels=1, height, width)
-#     image = torch.rand(1, 1, 256, 256)
+# # Example visuals
 
-#     # Initialize the LaplacianPyramidNN
-#     laplacian_pyramid_nn = Struct_layer(in_channels=16, max_level=5)
+# pyramid_levels = [x[i][0, 0].cpu().detach().numpy() for i in range(4)]
+# fig, axes = plt.subplots(1, 4, figsize=(20, 5))
 
-#     # Forward pass to build the pyramid
-#     pyramid = laplacian_pyramid_nn(image)
+# # Increase the font size
+# font_size = 20
 
-#     # Display the pyramid
-#     laplacian_pyramid_nn.display_pyramid(pyramid)
+# # Loop through each level and plot
+# for i, (level, ax) in enumerate(zip(pyramid_levels, axes)):
+#     im = ax.imshow(level, cmap='viridis', aspect='auto')  # Use 'viridis' colormap
+#     ax.set_title(f'Level {i}', fontsize=font_size)  # Add level and shape to the title
+#     ax.set_xlabel('Frequency Bins', fontsize=font_size)
+#     ax.set_ylabel('Time Frames', fontsize=font_size)
+
+#     # Increase the tick label font size
+#     ax.tick_params(axis='both', labelsize=font_size)
+
+#     # Add a color bar with larger font size
+#     cbar = fig.colorbar(im, ax=ax)
+#     cbar.ax.tick_params(labelsize=font_size)
+
+# plt.tight_layout()
+# plt.show()
+
+
+
+##neg logarithm
+# pyramid_levels = [-np.log1p(x[i][0, 3].cpu().detach().numpy()) for i in range(4)]
+# fig, axes = plt.subplots(1, 4, figsize=(20, 5))
+
+# # Increase the font size
+# font_size = 20
+
+# # Loop through each level and plot
+# for i, (level, ax) in enumerate(zip(pyramid_levels, axes)):
+#     im = ax.imshow(level, cmap='viridis', aspect='auto',vmin=-0.7,vmax=0.1)  # Use 'viridis' colormap
+#     ax.set_title(f'Level {i}', fontsize=font_size)  # Add level and shape to the title
+#     ax.set_xlabel('Frequency Bins', fontsize=font_size)
+#     ax.set_ylabel('Time Frames', fontsize=font_size)
+
+#     # Increase the tick label font size
+#     ax.tick_params(axis='both', labelsize=font_size)
+
+#     # Add a color bar with larger font size
+#     cbar = fig.colorbar(im, ax=ax)
+#     cbar.ax.tick_params(labelsize=font_size)
+
+# plt.tight_layout()
+# plt.show()
+
+
+##coolwarm
+# pyramid_levels = [(x[i][0, 3].cpu().detach().numpy()) for i in range(4)]
+# fig, axes = plt.subplots(1, 4, figsize=(20, 5))
+
+# # Increase the font size
+# font_size = 20
+
+# # Loop through each level and plot
+# for i, (level, ax) in enumerate(zip(pyramid_levels, axes)):
+#     im = ax.imshow(level, cmap='RdYlGn', aspect='auto',vmin=-0.2,vmax=0.8)  # Use 'viridis' colormap
+#     ax.set_title(f'Level {i}', fontsize=font_size)  # Add level and shape to the title
+#     ax.set_xlabel('Frequency Bins', fontsize=font_size)
+#     ax.set_ylabel('Time Frames', fontsize=font_size)
+
+#     # Increase the tick label font size
+#     ax.tick_params(axis='both', labelsize=font_size)
+
+#     # Add a color bar with larger font size
+#     cbar = fig.colorbar(im, ax=ax)
+#     cbar.ax.tick_params(labelsize=font_size)
+
+# plt.tight_layout()
+# plt.show()
