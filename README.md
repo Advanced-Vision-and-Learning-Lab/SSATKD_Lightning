@@ -1,14 +1,14 @@
-# Histogram Layer Time Delay Neural Networks:
+# Structural and Statistical Audio Texture Knowledge Distillation (SSATKD) for Passive Sonar Classification
 <p align="center">
   <img src="Figures/SSATKD_freamework.png" alt="Workflow Diagram">
 </p>
 
 
-**Histogram Layer Time Delay Neural Networks For Passive Sonar Classification**
+**Structural and Statistical Audio Texture Knowledge Distillation (SSATKD) for Passive Sonar Classification**
 
-Jarin Ritu, Ethan Barnes, Riley Martell, Alexandra Van Dine and Joshua Peeples
+Jarin Ritu, Amirmohammad Mohammadi, Davelle Carreiro, Alexandra Van Dine, Joshua Peeples
 
-Note: If this code is used, cite it: Jarin Ritu, Ethan Barnes, Riley Martell, Alexandra Van Dine and Joshua Peeples. (2023, July 25) Peeples-Lab/HLTDNN: Initial Release (Version v1.0). 
+Note: If this code is used, cite it: Jarin Ritu, Amirmohammad Mohammadi, Davelle Carreiro, Alexandra Van Dine and Joshua Peeples. (2024, July 25) Peeples-Lab/SSTKAD_Lightning: Initial Release (Version v1.0). 
 [`Zendo`](https://doi.org/10.5281/zenodo.8184517).https://zenodo.org/record/8184517
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.8184517.svg)](https://doi.org/10.5281/zenodo.8184517)
 
@@ -20,7 +20,7 @@ Note: If this code is used, cite it: Jarin Ritu, Ethan Barnes, Riley Martell, Al
 
 
 
-In this repository, we provide the paper and code for "Histogram Layer Time Delay Neural Network For Passive Sonar Classification."
+In this repository, we provide the paper and code for " Structural and Statistical Audio Texture Knowledge Distillation (SSATKD) for Passive Sonar Classification."
 
 ## Installation Prerequisites
 
