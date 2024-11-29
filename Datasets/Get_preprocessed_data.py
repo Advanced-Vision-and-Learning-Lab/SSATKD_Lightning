@@ -50,14 +50,14 @@ def Generate_Segments(dataset_dir, segments_dir, target_sr=32000, segment_length
                         output_music = audio_resampled[start_i:end_i]
                         if end_i - start_i == segment_duration:
                             segment_file_path = os.path.join(segments_path, subfolder_name,
-                                                             f'{os.path.splitext(file_name)[0]}_{ship}-Segment_{i + 1}.wav')
+                                                              f'{os.path.splitext(file_name)[0]}_{ship}-Segment_{i + 1}.wav')
                             os.makedirs(os.path.dirname(segment_file_path), exist_ok=True)
                             sf.write(segment_file_path, output_music, samplerate=target_sr)
 
 
 def process_data(data_dir='./Datasets/DeepShip/', sample_rate=None, segment_length=None):
     # pdb.set_trace()
-    segments_dir = '{}Segments_{}Hz/'.format(data_dir,sample_rate)
+    segments_dir = '{}Segments_5s_{}Hz/'.format(data_dir,sample_rate)
 
     # Check if the 'Segments' folder already exists
     if not os.path.exists(segments_dir):

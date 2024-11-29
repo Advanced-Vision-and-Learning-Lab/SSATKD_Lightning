@@ -1,10 +1,6 @@
 import torch
-import pdb
 import torch.nn as nn
 from torch.nn import functional as F
-# from point_features import point_sample
-
-
 
 class QCO_2d(nn.Module):
     def __init__(self, scale, level_num, num_classes=4, stride=1, dilation=1, out_chan= 144, epsilon=1e-6):
@@ -14,8 +10,6 @@ class QCO_2d(nn.Module):
 
 
     def forward(self, x):
-
-
         N1, C1, H1, W1 = x.shape #[64, 16, 52, 47]
         if H1 // self.level_num != 0 or W1 // self.level_num != 0:
             x = F.adaptive_avg_pool2d(x, ((int(H1/self.level_num)*self.level_num), int(W1/self.level_num)*self.level_num))
@@ -39,32 +33,13 @@ class QCO_2d(nn.Module):
 
         q_levels = torch.arange(self.level_num).float().cuda()
         q_levels = q_levels.expand(N, self.scale*self.scale, self.level_num)
-        q_levels =  (2 * q_levels + 1) / (2 * self.level_num) * (cos_sim_max - cos_sim_min) + cos_sim_min #Rescale q_levels to be in the range [cos_sim_min, cos_sim_max]
-        
-        
-        
-        # q_levels_inter = q_levels[:, :, 1] - q_levels[:, :, 0] #Compute the quantization interval for each quantization level.
-        # q_levels_inter = q_levels_inter.unsqueeze(1).unsqueeze(-1) #(N, 1, self.scale*self.scale, 1)
-        # q_levels_inter = q_levels[:, :, 1] - q_levels[:, :, 0] 
-        # q_levels_inter = q_levels_inter.unsqueeze(1).unsqueeze(-1) 
-        # cos_sim = cos_sim.unsqueeze(-1) 
-        # q_levels = q_levels.unsqueeze(1)
-        # quant = 1 - torch.abs(q_levels - cos_sim) 
-        # quant = quant * (quant > (1 - q_levels_inter)) 
-        
-        
-
-        
-        
-        cos_sim = cos_sim.unsqueeze(-1) #(N, self.size_h*self.size_w, self.scale*self.scale, 1)
+        q_levels =  (2 * q_levels + 1) / (2 * self.level_num) * (cos_sim_max - cos_sim_min) + cos_sim_min      
+        cos_sim = cos_sim.unsqueeze(-1) 
         q_levels = q_levels.unsqueeze(1) 
         sigma = 1/( self.level_num/2)
-        quant = torch.exp(-(1/sigma**2) * ((cos_sim.unsqueeze(-1).unsqueeze(1) - q_levels.unsqueeze(-1).unsqueeze(-1))**2))
         
-        # pdb.set_trace()
-        
+        quant = torch.exp(-(1/sigma**2) * ((cos_sim.unsqueeze(-1).unsqueeze(1) - q_levels.unsqueeze(-1).unsqueeze(-1))**2))        
         quant = quant.view([N, self.size_h, self.size_w, self.scale*self.scale, self.level_num]) 
-
         quant = quant.permute(0, -2, -1, 1, 2) 
         quant = quant.view(N, -1, self.size_h, self.size_w)
         quant = F.pad(quant, (0, 1, 0, 1), mode='constant', value=0.)
@@ -72,9 +47,7 @@ class QCO_2d(nn.Module):
         quant_left = quant[:, :, :, :self.size_h, :self.size_w].unsqueeze(3) 
         quant_right = quant[:, :, :, 1:, 1:].unsqueeze(2) 
         quant = quant_left * quant_right
-        # pdb.set_trace()
 
-        # pdb.set_trace()
         sta = quant.sum(-1).sum(-1)  
         
         #Peform normalization (enforce sum to one constraint)
@@ -86,38 +59,5 @@ class QCO_2d(nn.Module):
         
         sta = torch.cat([q_levels_h, q_levels_w, sta], dim=1) #Counting C
         sta = sta.permute(0, 3, 4, 1, 2).squeeze(-1)
-        # counting_numbers = sta[:, :, :, -1]
-        # Flatten the counting numbers to (batch_size, bins)
-        # counting_numbers = counting_numbers.view(N, -1)
-        
-        # pdb.set_trace()
-        # sta = sta.reshape(N, 3, self.scale * self.scale, -1)
-        # print("sta", sta)
         return sta
     
-    
-# Example to plot co occurance matrices    
-# # Creating a 4x4 grid of subplots since the shape of test is (4, 4, 500, 60)
-# fig, ax = plt.subplots(4, 4, figsize=(12, 12))  # Adjust the size as needed
-
-# # Setting the font size for labels and titles
-# font_size = 12
-
-# # Loop through each subplot and visualize the data
-# for i in range(4):
-#     for j in range(4):
-#         # Store the imshow object in 'im' to later use for colorbar
-#         im = ax[i, j].imshow(test[i, j], aspect='auto', cmap='viridis')
-#         ax[i, j].set_title(f'Qn-Map ({i+1},{j+1})', fontsize=font_size)  # Add subplot title
-
-#         # Simplified axis labels
-#         ax[i, j].set_xlabel(f'Qn 1', fontsize=font_size)  # Set X-axis label
-#         ax[i, j].set_ylabel(f'Qn {j+1}', fontsize=font_size)  # Set Y-axis label
-
-#         ax[i, j].tick_params(axis='both', labelsize=font_size)  # Increase font size for ticks
-
-#         # Add a colorbar for each subplot
-#         fig.colorbar(im, ax=ax[i, j])
-
-# plt.tight_layout()
-# plt.show()

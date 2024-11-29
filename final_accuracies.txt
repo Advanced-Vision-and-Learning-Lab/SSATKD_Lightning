@@ -1,2 +1,0 @@
-Final Train Accuracy: 0.9023
-Final Validation Accuracy: 0.6684

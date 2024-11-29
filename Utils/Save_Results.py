@@ -203,13 +203,10 @@ def plot_avg_confusion_matrix(cm, classes,
                    yticks=np.arange(len(classes)),
                    xticklabels=classes,
                    yticklabels=classes)
-                   #ylabel="True label",
-                   #xlabel="Predicted label")
+
     
     ax.set_ylim((len(classes) - 0.5, -0.5))
     plt.setp(ax.get_xticklabels(), rotation=45)
-    #plt.ylabel('True label')
-    #plt.xlabel('Predicted label')
     plt.tight_layout()
 
 

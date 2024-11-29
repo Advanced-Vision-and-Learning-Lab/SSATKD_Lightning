@@ -5,12 +5,8 @@ Created on Wed Jun 12 14:19:49 2024
 
 @author: jarin.ritu
 """
-import torch
+
 import torch.nn as nn
-import numpy as np
-import pdb
-import torch.nn.functional as F
-import matplotlib.pyplot as plt
 from kornia.augmentation import PadTo
 
 class SSTKAD(nn.Module):
@@ -87,17 +83,11 @@ class SSTKAD(nn.Module):
         feats_teacher = self.relu(feats_teacher)
         
         
-        # pdb.set_trace()
         size = feats_student.shape[-2:]
         resize_feats_teacher = PadTo((size[0],size[1]),pad_mode='constant')                                                                     
         feats_teacher = resize_feats_teacher(feats_teacher)
                                                                      
-        
-        
-        
-        # feats_teacher = nn.functional.interpolate(feats_teacher, size=feats_student.shape[-2:], 
-        #                                           mode="bilinear", align_corners=False)
-        
+
         
         struct_feats_student = self.struct_layer(feats_student)
         struct_feats_teacher = self.struct_layer(feats_teacher)

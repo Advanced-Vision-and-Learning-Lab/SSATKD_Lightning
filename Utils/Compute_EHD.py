@@ -7,17 +7,10 @@ Function to generate EHD histogram feature maps
 import numpy as np
 from scipy import signal,ndimage
 import torch.nn.functional as F
-import pdb
 import torch
 import torch.types
 import torch.nn as nn
-import numpy as np
 import matplotlib.pyplot as plt
-from scipy import signal, ndimage
-# from skimage.feature import local_binary_pattern
-# from torchvision import transforms
-# import dask
-# import warnings
     
 class EHD_Layer(nn.Module):
     def __init__(self, in_channels, angle_res, normalize_kernel,
@@ -60,7 +53,6 @@ class EHD_Layer(nn.Module):
         self.num_orientations = self.masks.shape[0] // in_channels
     
     def forward(self,x):
-        # pdb.set_trace()
         self.masks = self.masks.to(x.device)
         
         #Treat independently
@@ -75,10 +67,6 @@ class EHD_Layer(nn.Module):
         else:
             return x
         
-        #Set edge responses to "no edge" if not larger than threshold
-        # num_orientations = self.num_orientations
-        
-        # index[value< self.threshold] = self.num_orientations
         
         return value
     

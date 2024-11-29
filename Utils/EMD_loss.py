@@ -4,49 +4,15 @@ import torch
 import pdb
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-# class EarthMoversDistanceLoss(nn.Module):
-#     def __init__(self):
-#         super().__init__()
-
-#     def forward(self, x, y,x_weights,y_weights):
-#         # pdb.set_trace()
-        
-#         # # input has dims: (Batch x Bins)
-#         # bins = x.size(1)
-#         # r = torch.arange(bins)
-#         # s, t = torch.meshgrid(r, r)
-#         # tt = (t >= s).float().to(device)
-        
-
-#         cdf_student = torch.cumsum(x,dim=1)
-#         cdf_teacher = torch.cumsum(y,dim=1)
-
-#         # cdf_x = torch.matmul(x, tt.float())
-#         # cdf_y = torch.matmul(y, tt.float())
-
-
-#         return (x_weights*y_weights*torch.sum(((cdf_student - cdf_teacher)**2),axis=1)).mean()
-    
-    
+  
 class EarthMoversDistanceLoss(nn.Module):
     def __init__(self):
         super().__init__()
 
     def forward(self, x, y):
-        # pdb.set_trace()
-        
-        # # input has dims: (Batch x Bins)
-        # bins = x.size(1)
-        # r = torch.arange(bins)
-        # s, t = torch.meshgrid(r, r)
-        # tt = (t >= s).float().to(device)
-        
 
         cdf_student = torch.cumsum(x,dim=1)
         cdf_teacher = torch.cumsum(y,dim=1)
-
-        # cdf_x = torch.matmul(x, tt.float())
-        # cdf_y = torch.matmul(y, tt.float())
 
         return torch.sum(((cdf_student - cdf_teacher)**2),axis=1).mean()
 
@@ -74,12 +40,12 @@ class MutualInformationLoss(nn.Module):
     
 
 
+
 class EMDLoss2D(nn.Module):
     def __init__(self):
         super(EMDLoss2D, self).__init__()
 
     def forward(self, student_hist, teacher_hist):
-        # pdb.set_trace()
         # Extract the counts from the last dimension of the histograms
         pred_hist_counts = student_hist[:, :, :, -1]
         target_hist_counts = teacher_hist[:, :, :, -1]
@@ -90,11 +56,6 @@ class EMDLoss2D(nn.Module):
         target_bin_x = teacher_hist[:, :, :, 0]
         target_bin_y = teacher_hist[:, :, :, 1]
         
-        # print("\npred_bin_x",pred_bin_x[:2,:2,:2])
-        # print("\npred_bin_y",pred_bin_y[:2,:2,:2])
-        
-        # pdb.set_trace()
-
         # Ensure the histograms are normalized
         pred_hist_counts = pred_hist_counts / (torch.sum(pred_hist_counts, dim=(-1, -2), keepdim=True) + 1e-6)
         target_hist_counts = target_hist_counts / (torch.sum(target_hist_counts, dim=(-1, -2), keepdim=True) + 1e-6)
@@ -106,20 +67,16 @@ class EMDLoss2D(nn.Module):
         # Calculate the distances between each pair of 2D bin centers
         bin_centers_x_diff = pred_bin_x.unsqueeze(-1) - target_bin_x.unsqueeze(-3)
         bin_centers_y_diff = pred_bin_y.unsqueeze(-1) - target_bin_y.unsqueeze(-3)
-        # print("\nbin_centers_x_diff",bin_centers_x_diff[:2,:2,:2,:2])
-        # print("\nbin_centers_y_diff",bin_centers_y_diff[:2,:2,:2,:2])
         ground_distance = torch.sqrt(bin_centers_x_diff**2 + bin_centers_y_diff**2)
-        # print("\nground_distance",ground_distance[:2,:2,:2,:2])
 
         # Expand bin_diffs to match the dimensions of cdf_pred and cdf_target
         ground_distance = ground_distance.unsqueeze(0).unsqueeze(0)
 
-        # Calculate the EMD by summing the weighted absolute differences between the CDFs
-        emd = torch.sum(ground_distance * torch.abs(cdf_pred.unsqueeze(-1) - cdf_target.unsqueeze(-3)), dim=(-1, -2))
-        
-        # emd = torch.sum(ground_distance * (cdf_pred.unsqueeze(-1) - cdf_target.unsqueeze(-3))**2, dim=(-1, -2))
+        # Calculate the EMD by summing the weighted squared differences (L2 loss) between the CDFs
+        emd = torch.sum(ground_distance * (cdf_pred.unsqueeze(-1) - cdf_target.unsqueeze(-3))**2, dim=(-1, -2))
 
         return torch.mean(emd)
+
     
 # Example usage
 if __name__ == '__main__':

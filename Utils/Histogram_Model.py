@@ -3,10 +3,6 @@ import torch.nn as nn
 import numpy as np
 import torch
 from Utils.TDNN_Model import TDNN
-from torchvision import models
-import pdb
-# from Utils.CDM_DBF import CustomCDMLayer
-# from Utils.DTIEM_Model_RBF import QCO_2d
 
 class HistRes(nn.Module):
     
@@ -24,44 +20,8 @@ class HistRes(nn.Module):
         self.dropout = None
         
         #Default to use resnet18, otherwise use Resnet50
-        #Defines feature extraction backbone model and redefines linear layer
-        if model_name == 'resnet18':
-            self.backbone = models.resnet18(pretrained=pretrained)
-            num_ftrs = self.backbone.fc.in_features
-            
-        elif model_name == 'resnet50':
-            self.backbone = models.resnet50(pretrained=pretrained)
-            num_ftrs = self.backbone.fc.in_features
-                
-        elif model_name == "resnet50_wide":
-            self.backbone = models.wide_resnet50_2(pretrained=pretrained)
-            num_ftrs = self.backbone.fc.in_features
-           
-            
-        elif model_name == "resnet50_next":
-            self.backbone = models.resnext50_32x4d(pretrained=pretrained)
-            num_ftrs = self.backbone.fc.in_features
-            
-        elif model_name == "densenet121":
-            self.backbone = models.densenet121(pretrained=pretrained,memory_efficient=True)
-            self.bn_norm = self.backbone.features.norm5
-            self.backbone.features.norm5 = nn.Sequential()
-            self.backbone.avgpool = nn.Sequential()
-            num_ftrs =  self.backbone.classifier.in_features
-            self.fc = self.backbone.classifier
-            self.backbone.classifier = torch.nn.Sequential()
-            
-        elif model_name == "efficientnet":
-            self.backbone = models.efficientnet_b0(pretrained=pretrained)
-            num_ftrs =  self.backbone.classifier[-1].in_features
-            self.fc = self.backbone.classifier[-1]
-            self.backbone.classifier[-1] = torch.nn.Sequential()
-            
-        elif model_name == "regnet":
-            self.backbone = models.regnet_x_400mf(pretrained)
-            num_ftrs =  self.backbone.fc.in_features
-        
-        elif model_name == "TDNN":
+        #Defines feature extraction backbone model and redefines linear layer        
+        if model_name == "TDNN":
             self.backbone = TDNN(in_channels=TDNN_feats)
             num_ftrs = self.backbone.fc.in_features
             self.dropout = self.backbone.dropout
@@ -93,20 +53,8 @@ class HistRes(nn.Module):
         
     def forward(self,x):
 
-        #Only use histogram features at end of network
-       
-        if self.model_name == 'densenet121':
-            x = self.backbone(x).unsqueeze(2).unsqueeze(3)
-        
-        elif self.model_name == 'efficientnet':
-            x = self.backbone.features(x)
-            pass
-        
-        elif self.model_name == 'regnet':
-            x = self.backbone.stem(x)
-            x = self.backbone.trunk_output(x)
-            
-        elif self.model_name == 'TDNN':
+        #Only use histogram features at end of network       
+        if self.model_name == 'TDNN':
             x = self.backbone.conv1(x)
             x = self.backbone.nonlinearity(x)
             x = self.backbone.maxpool1(x)

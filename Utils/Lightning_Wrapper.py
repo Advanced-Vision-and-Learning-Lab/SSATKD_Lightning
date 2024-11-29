@@ -10,23 +10,12 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import lightning.pytorch as L
-import torch.nn.functional as F
 import torchmetrics
 from sklearn.metrics import confusion_matrix
-
 import csv
 import os
-import pdb
-import matplotlib.pyplot as plt
-from torch.profiler import profile, record_function, ProfilerActivity
-import numpy as np
-import seaborn as sns
-import pytorch_lightning as pl
-from sklearn.metrics import confusion_matrix, classification_report
-from Utils.CustomLRScheduler import CustomLRScheduler
-from lightning.pytorch.utilities import grad_norm
-torch.autograd.set_detect_anomaly(True)
 from Utils.Loss_function import SSTKAD_Loss
+
 class Lightning_Wrapper(L.LightningModule):
     def __init__(self, model, num_classes, max_iter,log_dir, optimizer=optim.AdamW, lr=0.0001,
                  scheduler=None, criterion=nn.CrossEntropyLoss(), 
@@ -50,7 +39,6 @@ class Lightning_Wrapper(L.LightningModule):
         #Options are macro (sensitive to class imbalance), 
         # micro (sensitive to majority class), and weighted (balance between macro/micro)
         self.average = average
-        # pdb.set_trace()
         #If names not provided, generate names (Class 1, ... , Class C)
         if label_names is None:
             self.label_names = []
@@ -65,8 +53,6 @@ class Lightning_Wrapper(L.LightningModule):
         else:
             task = "multiclass"
             
-
-
         self.train_accuracy = torchmetrics.classification.Accuracy(task=task, num_classes=self.num_classes)
         self.val_accuracy = torchmetrics.classification.Accuracy(task=task, num_classes=self.num_classes)
         self.val_f1 = torchmetrics.F1Score(task=task, num_classes=self.num_classes, average=average)
@@ -97,7 +83,6 @@ class Lightning_Wrapper(L.LightningModule):
 
 
     def training_step(self, batch, batch_idx):
-        # pdb.set_trace()
         signals, labels , idx = batch
         _, outputs= self.model(signals) 
         loss = self.criterion(outputs, labels.long())
@@ -108,7 +93,6 @@ class Lightning_Wrapper(L.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        # pdb.set_trace()
         signals, labels, idx = batch
         _, outputs= self.model(signals)
         loss = self.criterion(outputs, labels.long())
@@ -125,14 +109,12 @@ class Lightning_Wrapper(L.LightningModule):
 
     def test_step(self, batch, batch_idx):
         signals, labels, idx = batch
-        # print(labels)
         _, outputs = self.model(signals)
         loss = self.criterion(outputs, labels.long())
 
 
 
         self.log('test_loss', loss, on_step=False, on_epoch=True)
-        # self.log('test_accuracy',accuracy, on_step=False, on_epoch=True)
         self.test_preds.extend(outputs.argmax(dim=1).tolist())
         self.test_labels.extend(labels.tolist())
         self.log_metrics(outputs, labels, prefix='test')
@@ -154,7 +136,6 @@ class Lightning_Wrapper(L.LightningModule):
 
     def log_metrics(self, outputs, labels, prefix):
         accuracy = getattr(self, f'{prefix}_accuracy')(outputs, labels)
-        # print("\nTest acc", accuracy)
         f1 = getattr(self, f'{prefix}_f1')(outputs, labels)
         precision = getattr(self, f'{prefix}_precision')(outputs, labels)
         recall = getattr(self, f'{prefix}_recall')(outputs, labels)
@@ -277,7 +258,6 @@ class Lightning_Wrapper_KD(L.LightningModule):
     
 
     def training_step(self, batch, batch_idx):
-        # pdb.set_trace()
         signals, labels, idx = batch
 
         struct_feats_student, struct_feats_teacher, stats_feats_student, stats_feats_teacher, output_student, output_teacher = self.model(signals)
@@ -297,26 +277,7 @@ class Lightning_Wrapper_KD(L.LightningModule):
         self.log('distillation_loss', loss_dict['distill_loss'], on_step=False, on_epoch=True)
         self.log('struct_loss', loss_dict['struct_loss'], on_step=False, on_epoch=True)
         self.log('stats_loss', loss_dict['stat_loss'], on_step=False, on_epoch=True)
-        self.log('learning_rate', self.lr, on_step=False, on_epoch=True)
-        
-        # # Squeeze and store the quantities
-        # quant_student = quant_student.squeeze(1).cpu().detach().numpy()
-        # quant_teacher = quant_teacher.squeeze(1).cpu().detach().numpy()
-        
-        # fig, ax = plt.subplots(8,8)
-        # test = quant_student[0]
-        
-        # for i in range(0,8):
-        #     for j in range(0,8):
-        #         ax[i,j].imshow(test[i,j])
-                
-        
-        # plt.show()
-
-
-        # # Store only the first quant matrix of the batch
-        # self.quant_student_list.append(quant_student[0])
-        # self.quant_teacher_list.append(quant_teacher[0])
+        self.log('learning_rate', self.lr, on_step=False, on_epoch=True)        
 
         return loss
 
@@ -378,22 +339,6 @@ class Lightning_Wrapper_KD(L.LightningModule):
             self.test_preds.clear()
             self.test_labels.clear()
     
-    def plot_confusion_matrix(self, cm, prefix, label_names):
-        print(f"Confusion Matrix:\n{cm}")  # Print the confusion matrix for verification
-        # plt.figure(figsize=(10, 7))
-        # sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=label_names, yticklabels=label_names)
-        # # plt.xlabel('Predicted Label')
-        # # plt.ylabel('True Label')
-        # plt.title(f'{prefix.capitalize()} Confusion Matrix')
-
-        # save_path = f"{prefix}_confusion_matrix.png"
-        # plt.savefig(save_path)
-        
-        # plt.show()
-    
-
-    
-
 
 
     def log_metrics(self, outputs, labels, prefix):
@@ -432,7 +377,6 @@ class Lightning_Wrapper_KD(L.LightningModule):
         if self.val_preds and self.val_labels:
             cm = confusion_matrix(self.val_labels, self.val_preds, labels=range(self.num_classes))
             self.log_confusion_matrix(cm, 'val')
-            # self.plot_confusion_matrix(cm, 'val')
             self.val_preds.clear()
             self.val_labels.clear()
 
