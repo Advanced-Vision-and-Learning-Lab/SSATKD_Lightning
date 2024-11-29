@@ -1,203 +1,130 @@
-# Demo.py
+# Histogram Layer Time Delay Neural Networks:
+<p align="center">
+  <img src="Figures/Figure1_SSTAKD_Framework.pdf" alt="Workflow Diagram">
+</p>
 
-This script is designed for training and evaluating models for experiments on datasets.
 
-## Usage
+**Histogram Layer Time Delay Neural Networks For Passive Sonar Classification**
 
-1. Ensure you have Python installed.
-2. Clone this repository.
-3. Install the required dependencies listed in `requirements.txt`.
-4. Navigate to the root directory of the cloned repository.
-5. Run the following command to execute the script:
-   ```
-   python Demo.py
-   ```
+Jarin Ritu, Ethan Barnes, Riley Martell, Alexandra Van Dine and Joshua Peeples
 
-## Important Parameters
+Note: If this code is used, cite it: Jarin Ritu, Ethan Barnes, Riley Martell, Alexandra Van Dine and Joshua Peeples. (2023, July 25) Peeples-Lab/HLTDNN: Initial Release (Version v1.0). 
+[`Zendo`](https://doi.org/10.5281/zenodo.8184517).https://zenodo.org/record/8184517
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.8184517.svg)](https://doi.org/10.5281/zenodo.8184517)
 
-- `--save_results`: Flag to save results of experiments (default: True)
-- `--folder`: Location to save models (default: 'Saved_Models')
-- `--data_selection`: Dataset selection:
-  - 1: FashionMNIST
-  - 2: CIFAR10
-  - 3: sugarcane_damage_usa
-- `--feature_extraction`: Flag for feature extraction:
-  - False: Train whole model
-  - True: Only update fully connected/encoder parameters (default: False)
-- `--use_pretrained`: Flag to use pretrained model from ImageNet or train from scratch (default: True)
-- `--num_workers`: Number of workers for dataloader (default: 0)
-- `--Parallelize`: Enables parallel functionality (default: True)
-- `--train_batch_size`: Input batch size for training (default: 4)
-- `--val_batch_size`: Input batch size for validation (default: 32)
-- `--test_batch_size`: Input batch size for testing (default: 32)
-- `--num_epochs`: Number of epochs to train each model for (default: 10)
-- `--resize_size`: Resize the image before center crop (default: 256)
-- `--lr`: Learning rate (default: 0.001)
-- `--model`: Backbone architecture to use (default: 'simple_cnn')
+[`IEEE Xplore`](https://ieeexplore.ieee.org/abstract/document/10248102)
 
-## Dependencies
+[`arXiv`](https://arxiv.org/abs/2307.13788)
 
-- `numpy`
-- `torch`
-- `matplotlib`
-- `pytorch_lightning`
+[`BibTeX`](#CitingHist)
 
-## License
 
-[MIT License](LICENSE)
 
-# View_Results.py
+In this repository, we provide the paper and code for "Histogram Layer Time Delay Neural Network For Passive Sonar Classification."
 
-This script is designed for generating results from saved models.
+## Installation Prerequisites
 
-## Usage
 
-1. Ensure you have Python installed.
-2. Clone this repository.
-3. Install the required dependencies listed in `requirements.txt`.
-4. Navigate to the root directory of the cloned repository.
-5. After training through demo.py, run the following command to execute the script:
-   ```
-   python View_Results.py
-   ```
+The [`requirements.txt`](requirements.txt) file includes all the necessary packages, and the packages will be installed using:
+
+   ```pip install -r requirements.txt```
+
+Or, for a more convenient option, a pre-configured environment is available for download through the provided link. This environment comes with all the essential packages already installed, ensuring a hassle-free setup process.
+
+[`Download environment`](https://drive.google.com/file/d/1kASSpbMOtZCNF54oRXqUwxzxEGhF0YPg/view?usp=sharing)
+
+## Demo
+
+To get started, please follow the instructions in the [Datasets](Datasets) folder to download the dataset.
+Next, run [`demo.py`](demo.py) in Python IDE (e.g., Spyder) or command line to train, validate, and test models. 
+To evaluate performance,
+run [`View_Results.py`](View_Results.py) (if results are saved out).
+
+[The results may vary from the paper as we updated the data loading and data normalization]
+
+## Main Functions
+
+The target classification code uses the following functions. 
+
+1. Intialize model  
+
+   ```model, input_size, feature_layer = intialize_model(**Parameters)```
+
+2. Prepare dataset(s) for model
+   
+   ```dataloaders_dict = Prepare_Dataloaders(**Parameters)```
+
+3. Train model 
+
+   ```train_dict = train_model(**Parameters)```
+
+4. Test model
+
+   ```test_dict = test_model(**Parameters)```
+
 
 ## Parameters
 
-Use the same parameters as demo.py
+The parameters can be set in the following script:
+   
+[`Demo_Parameters.py`](Demo_Parameters.py)
 
-**Additional Parameters**
-TBD
-
-## Dependencies
-
-- `numpy`
-- `matplotlib`
-- `pytorch`
-- `pytorch_lightning`
-
-## Using Tensorboard with View Results
-
-**General documentation is [here](https://pytorch.org/tutorials/recipes/recipes/tensorboard_with_pytorch.html)**
-
-Access the tensorboard interface by typing the below command
+## Inventory
 
 ```
-tensorboard --logdir <ModelDirectory>
-```
+https://github.com/Peeples-Lab/HLTDNN 
 
-Using tensorboard in this repo, you can see metrics collected as well as the loss curves. Please note, tensorboard aggregates this data using batch not Epochs. You can also export this data to make more appropriate visualizations.
+└── root directory
+    ├── demo.py                           // Run this. Main demo file.
+    ├── Demo_Parameters.py                // Parameter file for the demo.
+    ├── Prepare_Data.py                   // Load dataset for the demo. 
+    ├── View_Results.py                   // Run this after the demo to view saved results. 
+    └── Datasets                
+        ├── Get_Preprocessed_Data.py      // Resample the audio data and generate segments for the dataset.
+        └── DeepShipSegments.py           // Create a custom dataset for DeepShip.
+    └── Utils                     
+        ├── Class_information.py          // Class names for dataset for the results script.
+        ├── Compute_FDR.py                // Compute Fisher’s discriminant ratio.
+        ├── Confusion_mats.py             // Create and plot confusion matrix.
+        ├── Generate_Learning_Curves.py   // Generate learning curves for training and validation.
+        ├── Generate_TSNE_visual.py       // Generate TSNE visuals.
+        ├── Generate_Spatial_Dims.py      // Compute spatial dimensions for histogram layer models.
+        ├── Get_Optimizer.py              // Define a set of optimizers to choose from.
+        ├── Histogram_Model.py            // Load histogram model with TDNN (or any backbone network).
+        ├── Network_functions.py          // Contains functions to initialize, train, and test the model.
+        ├── RBFHistogramPooling.py        // Create histogram layer.
+        ├── Save_Results.py               // Save results from the demo script.
+        ├── pytorchtools.py               // Implement early stopping to terminate training based on validation metrics.
+        └── Feature_Extraction_Layer.py   // Extract and transform different features from the audio files.
+        └── TDNN.py                       // Baseline TDNN model.
 
-The scalar metrics can be found in both the tensorboard and the aggregated_results.json file.
 
-## License
 
-[MIT License](LICENSE)
-
-# DataModules.py
-
-This script provides PyTorch Lightning DataModules for various datasets to be used for training and evaluation.
-
-## Usage
-
-This script contains DataModules for three different datasets: FashionMNIST, CIFAR10, and sugarcane_damage_usa. To use these DataModules, follow these steps:
-
-1. Import the desired DataModule class from this script into your main script.
-2. Initialize an instance of the DataModule class with the appropriate parameters.
-3. Call the `prepare_data()` method to download and prepare the dataset.
-4. Call the `setup()` method to split the dataset into training, validation, and test sets and apply any necessary transformations.
-5. Use the `train_dataloader()`, `val_dataloader()`, and `test_dataloader()` methods to obtain DataLoader objects for training, validation, and testing, respectively.
-
-## Adjustments
-
-You can adjust the behavior of the DataModules by modifying the parameters passed to the constructor of each DataModule class. Additionally, you can modify the transformations applied to the data by editing the `train_transform` and `test_transform` attributes.
-
-## Adding Your Own Dataset
-
-To add your own dataset, follow these general instructions:
-
-1. Ensure your dataset is formatted appropriately and accessible from your local filesystem or a remote location.
-2. Create a new class in this script that inherits from `L.LightningDataModule` (where `L` is the alias for PyTorch Lightning) and implements the necessary methods (`prepare_data()`, `setup()`, `train_dataloader()`, `val_dataloader()`, `test_dataloader()`).
-3. Define any necessary transformations for your dataset and apply them within the `train_transform` and `test_transform` attributes of your DataModule class.
-4. Update the `prepare_data()` method to download and prepare your dataset.
-5. Update the `setup()` method to split your dataset into training, validation, and test sets and apply the defined transformations.
-6. Import and use your custom DataModule class in your main script following the same steps as described in the "Usage" section.
-
-## Dependencies
-
-- `lightning`
-- `torch`
-- `albumentations`
-- `torchvision`
-
-## License
-
-[MIT License](LICENSE)
-
-# Demo_Parameters.py
-
-This script contains parameters for training and evaluation of models. If you want to add your own dataset to the training pipeline, you'll need to make adjustments to the parameters in this script.
-
-## Adjustments for Adding Your Own Dataset
-
-1. **Dataset Selection (`data_selection`):** Choose a unique integer identifier for your dataset and update the `Dataset_names` dictionary to include the mapping from your identifier to the dataset name.
-
-2. **Dataset Directory (`Data_dirs`):** Specify the directory path where your dataset is located and update the `Data_dirs` dictionary with the dataset name as the key and the directory path as the value.
-
-3. **Class Names (`Class_names`):** Provide the list of class names for your dataset and update the `Class_names` dictionary with the dataset name as the key and the list of class names as the value.
-
-4. **Number of Channels (`channels`):** Specify the number of channels in your dataset (e.g., 1 for grayscale, 3 for RGB) and update the `channels` dictionary with the dataset name as the key and the number of channels as the value.
-
-5. **Number of Classes (`num_classes`):** Define the number of classes in your dataset and update the `num_classes` dictionary with the dataset name as the key and the number of classes as the value.
-
-6. **Number of Runs/Splits (`Splits`):** Determine the number of runs or splits for your dataset and update the `Splits` dictionary with the dataset name as the key and the number of runs/splits as the value.
-
-7. **Data Directory (`data_dir`):** Specify the directory path where your dataset is located based on the selected dataset.
-
-8. **Class Names (`class_names`):** Update the `class_names` variable with the list of class names for your dataset based on the selected dataset.
-
-## Usage
-
-After adjusting the parameters for your dataset, you can use the `Parameters` function to obtain the dictionary of parameters, which can then be used in your main script for training and evaluation.
-
-## Dependencies
-
-This script has no external dependencies.
-
-## Creating Conda Env on HPRC, Loading the GPU
-
-This repo was made with Python 3.11.5. For use on HPRC refer to the following instructions:
-
-1. Navigate to the project directory then load Python 3.11.5 and load Cuda using the following commands (always do that when using this framework)
-
-```
-module load GCCcore/13.2.0 Python/3.11.5
-ml CUDA
-```
-
-2. Create a virtual environment if one isnt in use.
-
-```
-python -m venv venv
-```
-
-3. Activate the venv (you will need to always activate the venv)
-
-```
-source venv/bin/activate
-```
-
-4. Install the Requirements
-
-```
-pip install -r requirements.txt
-```
-
-5. Install PyTorch with GPU support
-
-```
-pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu113
 ```
 
 ## License
 
-[MIT License](LICENSE)
+This source code is licensed under the license found in the [`LICENSE`](LICENSE) file in the root directory of this source tree.
+
+This product is Copyright (c) 2023 J. Ritu, E. Barnes, R. Martell, A. Dine and J. Peeples. All rights reserved.
+
+## <a name="CitingHist"></a>Citing HLTDNN
+
+If you use the Passive Sonar Classification classification code, please cite the following reference using the following entry.
+
+**Plain Text:**
+
+J. Ritu, E. Barnes, R. Martell, A. Dine and J. Peeples, "Histogram Layer Time Delay Neural Network For Passive Sonar Classification," 2023 IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WASPAA), pp. 1-5, doi: 10.1109/WASPAA58266.2023.10248102.
+
+**BibTex:**
+
+```
+@inproceedings{Ritu2023histogram,
+  title={Histogram layer time delay neural network for passive sonar classification},
+  author={Ritu, Jarin and Barnes, Ethan, and Martell, Riley, and  Van Dine, Alexandra, and Peeples, Joshua},
+  booktitle={2023 IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WASPAA)},
+  pages={TBD},
+  year={2023},
+  organization={IEEE}
+}
+```
