@@ -1,6 +1,6 @@
 # Histogram Layer Time Delay Neural Networks:
 <p align="center">
-  <img src="Figures/SSATKD_Framework.png" alt="Workflow Diagram">
+  <img src="Figures/SSATKD_freamework.png" alt="Workflow Diagram">
 </p>
 
 
