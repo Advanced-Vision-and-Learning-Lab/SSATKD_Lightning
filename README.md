@@ -9,6 +9,7 @@
 Jarin Ritu, Amirmohammad Mohammadi, Davelle Carreiro, Alexandra Van Dine, Joshua Peeples
 
 Note: If this code is used, cite it:  TBD (Authors). (202X, Month Day). TBD: Initial Release (Version v1.0).
+
 [`arXiv`](https://arxiv.org/abs/2307.13788)
 
 [`BibTeX`](#CitingHist)
