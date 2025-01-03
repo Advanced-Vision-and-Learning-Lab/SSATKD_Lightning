@@ -8,12 +8,7 @@
 
 Jarin Ritu, Amirmohammad Mohammadi, Davelle Carreiro, Alexandra Van Dine, Joshua Peeples
 
-Note: If this code is used, cite it: Jarin Ritu, Amirmohammad Mohammadi, Davelle Carreiro, Alexandra Van Dine and Joshua Peeples. (2024, July 25) Peeples-Lab/SSTKAD_Lightning: Initial Release (Version v1.0). 
-[`Zendo`](https://doi.org/10.5281/zenodo.8184517).https://zenodo.org/record/8184517
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.8184517.svg)](https://doi.org/10.5281/zenodo.8184517)
-
-[`IEEE Xplore`](https://ieeexplore.ieee.org/abstract/document/10248102)
-
+Note: If this code is used, cite it:  TBD (Authors). (202X, Month Day). TBD: Initial Release (Version v1.0).
 [`arXiv`](https://arxiv.org/abs/2307.13788)
 
 [`BibTeX`](#CitingHist)
@@ -29,9 +24,6 @@ The [`requirements.txt`](requirements.txt) file includes all the necessary packa
 
    ```pip install -r requirements.txt```
 
-Or, for a more convenient option, a pre-configured environment is available for download through the provided link. This environment comes with all the essential packages already installed, ensuring a hassle-free setup process.
-
-[`Download environment`](https://drive.google.com/file/d/1kASSpbMOtZCNF54oRXqUwxzxEGhF0YPg/view?usp=sharing)
 
 ## Demo
 
