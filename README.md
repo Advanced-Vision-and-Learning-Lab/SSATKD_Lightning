@@ -54,7 +54,7 @@ The target classification code uses the following functions.
 
 4. Test model
 
-   ```trainer.test = test_model(**Parameters)```
+   ```trainer.test(**Parameters)```
 
 
 ## Parameters
