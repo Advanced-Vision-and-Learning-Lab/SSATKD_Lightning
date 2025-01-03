@@ -40,19 +40,19 @@ The target classification code uses the following functions.
 
 1. Intialize model  
 
-   ```model, input_size, feature_layer = intialize_model(**Parameters)```
+   ```model = intialize_model(**Parameters)```
 
 2. Prepare dataset(s) for model
    
-   ```dataloaders_dict = Prepare_Dataloaders(**Parameters)```
+   ```data_module = DeepShipDataModule(**Parameters)```
 
 3. Train model 
 
-   ```train_dict = train_model(**Parameters)```
+   ```trainer.fit(**Parameters)```
 
 4. Test model
 
-   ```test_dict = test_model(**Parameters)```
+   ```trainer.test = test_model(**Parameters)```
 
 
 ## Parameters
@@ -69,14 +69,14 @@ https://github.com/Peeples-Lab/HLTDNN
 └── root directory
     ├── demo.py                           // Run this. Main demo file.
     ├── Demo_Parameters.py                // Parameter file for the demo.
-    ├── Prepare_Data.py                   // Load dataset for the demo. 
     ├── View_Results.py                   // Run this after the demo to view saved results. 
     └── Datasets                
         ├── Get_Preprocessed_Data.py      // Resample the audio data and generate segments for the dataset.
-        └── DeepShipSegments.py           // Create a custom dataset for DeepShip.
+        └── DeepShipDataModules.py.py     // Create a custom dataset for DeepShip.
     └── Utils                     
         ├── Class_information.py          // Class names for dataset for the results script.
         ├── Compute_FDR.py                // Compute Fisher’s discriminant ratio.
+        ├── Compute_EHD.py                // Compute edge responses. 
         ├── Confusion_mats.py             // Create and plot confusion matrix.
         ├── Generate_Learning_Curves.py   // Generate learning curves for training and validation.
         ├── Generate_TSNE_visual.py       // Generate TSNE visuals.
@@ -89,7 +89,13 @@ https://github.com/Peeples-Lab/HLTDNN
         ├── pytorchtools.py               // Implement early stopping to terminate training based on validation metrics.
         └── Feature_Extraction_Layer.py   // Extract and transform different features from the audio files.
         └── TDNN.py                       // Baseline TDNN model.
-
+        └── DTIEM_Model_RBF.py            // Statistical module.
+        └── EDM.py                        // Structural module.
+        └── EMD_loss.py                   // Compute Earth Mover Distance loss.
+        └── Lightning_Wrapper.py          // simplifies training by organizing code and automating tasks like logging and checkpoints
+        └── Loss_function.py              // Define all the loss functions.
+        └── PANN_models.py                // Define pretrained audio neural networks.
+        └── SSTKAD_v2.py                  // Define SSATKD model.
 
 
 ```
@@ -98,25 +104,18 @@ https://github.com/Peeples-Lab/HLTDNN
 
 This source code is licensed under the license found in the [`LICENSE`](LICENSE) file in the root directory of this source tree.
 
-This product is Copyright (c) 2023 J. Ritu, E. Barnes, R. Martell, A. Dine and J. Peeples. All rights reserved.
+This product is Copyright (c) 202X TBD. All rights reserved.
 
-## <a name="CitingHist"></a>Citing HLTDNN
+## <a name="CitingHist"></a>Citing SSATKD
 
-If you use the Passive Sonar Classification classification code, please cite the following reference using the following entry.
+If you use the SSATKD code, please cite the following reference using the following entry.
 
 **Plain Text:**
 
-J. Ritu, E. Barnes, R. Martell, A. Dine and J. Peeples, "Histogram Layer Time Delay Neural Network For Passive Sonar Classification," 2023 IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WASPAA), pp. 1-5, doi: 10.1109/WASPAA58266.2023.10248102.
+TBD
 
 **BibTex:**
 
 ```
-@inproceedings{Ritu2023histogram,
-  title={Histogram layer time delay neural network for passive sonar classification},
-  author={Ritu, Jarin and Barnes, Ethan, and Martell, Riley, and  Van Dine, Alexandra, and Peeples, Joshua},
-  booktitle={2023 IEEE Workshop on Applications of Signal Processing to Audio and Acoustics (WASPAA)},
-  pages={TBD},
-  year={2023},
-  organization={IEEE}
-}
+TBD
 ```
