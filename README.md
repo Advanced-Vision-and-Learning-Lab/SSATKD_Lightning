@@ -27,8 +27,14 @@ The [`requirements.txt`](requirements.txt) file includes all the necessary packa
 
    ```pip install -r requirements.txt```
 
-Or, a pre-configured environment file, light.yml, is available in the project directory. This environment includes all the essential packages pre-installed, providing a hassle-free setup process.
+Or, a pre-configured environment file, light.yml, is available in the project directory. Follow these steps to set it up:
 
+Open a terminal and navigate to the project directory.
+Create the Conda environment
+  conda env create -f light.yml
+Activate the environment:
+  conda activate <environment_name>
+Run SSATKD!
 
 ## Demo
 
