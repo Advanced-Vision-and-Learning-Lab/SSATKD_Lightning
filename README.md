@@ -31,13 +31,9 @@ Or, a pre-configured environment file, light.yml, is available in the project di
 
 Open a terminal and navigate to the project directory.
 
-Create the Conda environment
-
-  ```conda env create -f ssatkd.yml```
+Create the Conda environment:   ```conda env create -f ssatkd.yml```
   
-Activate the environment:
-  
-  ```conda activate ssatkd```
+Activate the environment: ```conda activate ssatkd```
   
 Run SSATKD!
 
