@@ -30,13 +30,14 @@ The [`requirements.txt`](requirements.txt) file includes all the necessary packa
 Or, a pre-configured environment file, light.yml, is available in the project directory. Follow these steps to set it up:
 
 Open a terminal and navigate to the project directory.
+
 Create the Conda environment
 
-  ```conda env create -f light.yml```
+  ```conda env create -f ssatkd.yml```
   
 Activate the environment:
   
-  ```conda activate <environment_name>```
+  ```conda activate ssatkd```
   
 Run SSATKD!
 
