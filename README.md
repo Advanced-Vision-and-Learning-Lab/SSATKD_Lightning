@@ -27,7 +27,7 @@ The [`requirements.txt`](requirements.txt) file includes all the necessary packa
 
    ```pip install -r requirements.txt```
 
-Or, a pre-configured environment file, light.yml, is available in the project directory. Follow these steps to set it up:
+Or, a pre-configured environment file, ssatkd.yml, is available in the project directory. Follow these steps to set it up:
 
 Open a terminal and navigate to the project directory.
 
