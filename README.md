@@ -128,5 +128,12 @@ TBD
 **BibTex:**
 
 ```
-TBD
+@article{ritu2025structural,
+  title={Structural and Statistical Audio Texture Knowledge Distillation (SSATKD) for Passive Sonar Classification},
+  author={Ritu, Jarin and Mohammadi, Amirmohammad and Carreiro, Davelle and Van Dine, Alexandra and Peeples, Joshua},
+  journal={arXiv preprint arXiv:2501.01921},
+  year={2025}
+}
+
 ```
+
