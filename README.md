@@ -8,7 +8,8 @@
 
 Jarin Ritu, Amirmohammad Mohammadi, Davelle Carreiro, Alexandra Van Dine, Joshua Peeples
 
-Note: If this code is used, cite it:  TBD (Authors). (202X, Month Day). TBD: Initial Release (Version v1.0).
+Note: If this code is used, cite it: Jarin Ritu, Amirmohammad Mohammadi, Davelle Carreiro, Alexandra Van Dine, Joshua Peeples.
+(2023, July 25) Peeples-Lab/HLTDNN: Initial Release (Version v1.0)
 Zendo. https://doi.org/10.5281/zenodo.14593898.
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14593898.svg)](https://doi.org/10.5281/zenodo.14593898)
 
@@ -115,7 +116,7 @@ https://github.com/Peeples-Lab/HLTDNN
 
 This source code is licensed under the license found in the [`LICENSE`](LICENSE) file in the root directory of this source tree.
 
-This product is Copyright (c) 202X TBD. All rights reserved.
+This product is Copyright (c) 2025. Jarin Ritu, Amirmohammad Mohammadi, Davelle Carreiro, Alexandra Van Dine, Joshua Peeples. All rights reserved.
 
 ## <a name="CitingHist"></a>Citing SSATKD
 
@@ -123,7 +124,7 @@ If you use the SSATKD code, please cite the following reference using the follow
 
 **Plain Text:**
 
-TBD
+Jarin Ritu, Amirmohammad Mohammadi, Davelle Carreiro, Alexandra Van Dine, Joshua Peeples,"Structural and Statistical Audio Texture Knowledge Distillation (SSATKD) for Passive Sonar Classification", 2025 arXiv preprint,doi:10.48550/arXiv.2501.01921.
 
 **BibTex:**
 
