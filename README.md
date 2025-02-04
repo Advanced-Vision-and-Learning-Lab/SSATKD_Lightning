@@ -3,7 +3,6 @@
   <img src="Figures/SSATKD_freamework.png" alt="Workflow Diagram">
 </p>
 
-
 **Structural and Statistical Audio Texture Knowledge Distillation (SSATKD) for Passive Sonar Classification**
 
 Jarin Ritu, Amirmohammad Mohammadi, Davelle Carreiro, Alexandra Van Dine, Joshua Peeples
@@ -13,7 +12,7 @@ Note: If this code is used, cite it: Jarin Ritu, Amirmohammad Mohammadi, Davelle
 Zendo. https://doi.org/10.5281/zenodo.14593898.
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14593898.svg)](https://doi.org/10.5281/zenodo.14593898)
 
-[`arXiv`](https://arxiv.org/abs/2307.13788)
+[`arXiv`](https://arxiv.org/abs/2501.01921)
 
 [`BibTeX`](#CitingHist)
 
