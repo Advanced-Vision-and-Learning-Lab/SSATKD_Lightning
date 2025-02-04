@@ -9,7 +9,7 @@
 Jarin Ritu, Amirmohammad Mohammadi, Davelle Carreiro, Alexandra Van Dine, Joshua Peeples
 
 Note: If this code is used, cite it: Jarin Ritu, Amirmohammad Mohammadi, Davelle Carreiro, Alexandra Van Dine, Joshua Peeples.
-(2023, July 25) Peeples-Lab/HLTDNN: Initial Release (Version v1.0)
+(2025, January 3) Peeples-Lab/SSATKD_Lighting: Initial Release (Version v1.0)
 Zendo. https://doi.org/10.5281/zenodo.14593898.
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14593898.svg)](https://doi.org/10.5281/zenodo.14593898)
 
