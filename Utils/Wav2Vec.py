@@ -1,50 +1,72 @@
-# deps: pip install transformers torchaudio
-
+import os
 import torch
 import torch.nn as nn
 import torchaudio
 from transformers import Wav2Vec2Model, Wav2Vec2Config
-import pdb
 
 class Wav2Vec2AudioEncoder(nn.Module):
     """
-    Audio-encoder-only wrapper for Wav2Vec2-Base.
-    Use it to extract a 4D feature map (for texture/KD heads) and logits.
+    Wav2Vec2-Base (audio-encoder-only) with LOCAL weight loading (no downloads).
+    Expects raw waveform (B, T) at sample_rate_in (default 32k). Internally resamples to 16k.
 
-    Returns:
-        feats_4d: (B, C, T', 1)   # from chosen feature source
-        logits : (B, num_classes)
+    Behavior:
+      - use_pretrained=True  -> build from config, then LOAD LOCAL CHECKPOINT into self.encoder
+      - use_pretrained=False -> build from config (random init)
     """
-    def __init__(
-        self,
-        num_classes: int,
-        sample_rate_in: int = 32000,
-        model_name: str = "facebook/wav2vec2-base",
-        use_pretrained: bool = True,
-        freeze_encoder: bool = False,
-        feature_source: str = "layer2",  # "layer2" | "last_hidden" | "cnn"
-    ):
+    def __init__(self,
+                 num_classes: int,
+                 use_pretrained: bool = True,
+                 freeze_encoder: bool = False,
+                 sample_rate_in: int = 32000,
+                 feature_source: str = "cnn",  # "cnn" | "last_hidden" | "layer2"
+                 local_checkpoint_path: str = "./Model Weights/wav2vec2_base.pt",
+                 strict_load: bool = False):
         super().__init__()
-        assert feature_source in ("layer2", "last_hidden", "cnn")
+        assert feature_source in ("cnn", "last_hidden", "layer2")
         self.feature_source = feature_source
         self.sample_rate_in = sample_rate_in
         self.sample_rate_w2v = 16000
 
         # Resampler
         if self.sample_rate_in != self.sample_rate_w2v:
-            self.resampler = torchaudio.transforms.Resample(self.sample_rate_in, self.sample_rate_w2v)
+            self.resampler = torchaudio.transforms.Resample(
+                orig_freq=self.sample_rate_in, new_freq=self.sample_rate_w2v
+            )
         else:
             self.resampler = nn.Identity()
 
-        # Encoder with hidden states enabled
+        # Always initialize from config (no download)
+        cfg = Wav2Vec2Config()
+        cfg.output_hidden_states = True
+        self.encoder = Wav2Vec2Model(cfg)
+
+        # If requested, load LOCAL pretrained weights
         if use_pretrained:
-            cfg = Wav2Vec2Config.from_pretrained(model_name)
-            cfg.output_hidden_states = True
-            self.encoder = Wav2Vec2Model.from_pretrained(model_name, config=cfg)
-        else:
-            cfg = Wav2Vec2Config()
-            cfg.output_hidden_states = True
-            self.encoder = Wav2Vec2Model(cfg)
+            if not os.path.exists(local_checkpoint_path):
+                raise FileNotFoundError(f"Local Wav2Vec2 weights not found at: {local_checkpoint_path}")
+
+            state_dict = torch.load(local_checkpoint_path, map_location="cpu")
+
+            # Unwrap nested dicts if needed
+            if isinstance(state_dict, dict) and "model" in state_dict:
+                state_dict = state_dict["model"]
+            elif isinstance(state_dict, dict) and "state_dict" in state_dict:
+                state_dict = state_dict["state_dict"]
+
+            # (Optional but helpful) normalize common prefixes seen in checkpoints
+            def strip_prefix(d, prefix):
+                return { (k[len(prefix):] if k.startswith(prefix) else k): v for k, v in d.items() }
+
+            state_dict = strip_prefix(state_dict, "model.encoder.")
+            state_dict = strip_prefix(state_dict, "encoder.")
+            state_dict = strip_prefix(state_dict, "wav2vec2.")
+
+            missing, unexpected = self.encoder.load_state_dict(state_dict, strict=False)
+            if strict_load and (missing or unexpected):
+                raise RuntimeError(f"Strict load failed. missing={missing}, unexpected={unexpected}")
+            print(f"[Wav2Vec2] Loaded local weights with {len(missing)} missing and {len(unexpected)} unexpected keys.")
+
+        
 
         if freeze_encoder:
             for p in self.encoder.parameters():

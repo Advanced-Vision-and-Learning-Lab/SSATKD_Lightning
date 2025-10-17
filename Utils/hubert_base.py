@@ -1,18 +1,13 @@
+import os
 import torch
 import torch.nn as nn
 import torchaudio
 from transformers import HubertModel, HubertConfig
-
-
-import torch
-import torch.nn as nn
-import torchaudio
-from transformers import HubertModel, HubertConfig
-import pdb
 
 class HuBERTBaseForClassification(nn.Module):
     """
     Teacher wrapper around HuBERT-Base (768-d hidden).
+    Loads weights from a LOCAL checkpoint instead of downloading from the web.
     Expects raw waveform input of shape (B, T) at sample_rate_in (default 32k).
     Internally resamples to 16k for HuBERT.
     """
@@ -20,7 +15,8 @@ class HuBERTBaseForClassification(nn.Module):
                  num_classes: int,
                  use_pretrained: bool = True,
                  freeze_encoder: bool = False,
-                 sample_rate_in: int = 32000):
+                 sample_rate_in: int = 32000,
+                 local_checkpoint_path: str = "./Model Weights/hubert_base.pt"):
         super().__init__()
 
         self.num_classes = num_classes
@@ -35,16 +31,30 @@ class HuBERTBaseForClassification(nn.Module):
         else:
             self.resampler = nn.Identity()
 
-        # Load HuBERT
-        if use_pretrained:
-            self.encoder = HubertModel.from_pretrained("facebook/hubert-base-ls960")
-        else:
-            cfg = HubertConfig()
-            self.encoder = HubertModel(cfg)
+        # Always initialize from config (no download)
+        cfg = HubertConfig()
+        self.encoder = HubertModel(cfg)
 
+        # If requested, load local pretrained weights
+        if use_pretrained:
+            if not os.path.exists(local_checkpoint_path):
+                raise FileNotFoundError(f"Local HuBERT weights not found at: {local_checkpoint_path}")
+            
+            state_dict = torch.load(local_checkpoint_path, map_location="cpu")
+            
+            # Unwrap nested dicts if needed
+            if isinstance(state_dict, dict) and "model" in state_dict:
+                state_dict = state_dict["model"]
+            elif isinstance(state_dict, dict) and "state_dict" in state_dict:
+                state_dict = state_dict["state_dict"]
+            
+            missing, unexpected = self.encoder.load_state_dict(state_dict, strict=False)
+            print(f"[HuBERT] Loaded local weights with {len(missing)} missing and {len(unexpected)} unexpected keys.")
+
+        # Correct freeze logic (False = trainable)
         if freeze_encoder:
             for p in self.encoder.parameters():
-                p.requires_grad = True
+                p.requires_grad = False
 
         hidden = self.encoder.config.hidden_size  # 768 for base
         self.head = nn.Sequential(
@@ -72,16 +82,16 @@ class HuBERTBaseForClassification(nn.Module):
     
         # ---- choose feature source for texture/KD ----
         if feature_source == "cnn":
-            # CNN (feature extractor) output
-            cnn_seq = out.extract_features          # (B, T_c, C_c)
-            feats_4d = cnn_seq.transpose(1, 2)      # (B, C_c, T_c)
-            feats_4d = feats_4d.unsqueeze(2)        # (B, C_c, 1, T_c)  <-- (B,C,H,W) with H=1
+            cnn_seq = out.extract_features           # (B, T_c, C_c)
+            feats_4d = cnn_seq.transpose(1, 2).unsqueeze(2)  # (B, C_c, 1, T_c)
         elif feature_source == "last_hidden":
-            feats_4d = seq.transpose(1, 2).unsqueeze(2)   # (B, H, 1, T')
+            feats_4d = seq.transpose(1, 2).unsqueeze(2)      # (B, H, 1, T')
         else:  # "layer2"
             hs = out.hidden_states or ()
-            layer2 = hs[2] if len(hs) > 2 else seq        # (B, T', H)
-            feats_4d = layer2.transpose(1, 2).unsqueeze(1) # (B, 1, H, T')
+            layer2 = hs[2] if len(hs) > 2 else seq
+            feats_4d = layer2.transpose(1, 2).unsqueeze(1)   # (B, 1, H, T')
+        
         if return_hidden_states:
             return feats_4d, logits, out.hidden_states
         return feats_4d, logits
+
