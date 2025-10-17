@@ -17,16 +17,16 @@ class TDNNRaw(nn.Module):
         super().__init__()
         self.in_channels = in_channels
         
-        self.conv1 = nn.Conv1d(1,  16, kernel_size=11, padding=5)
-        self.bn1   = nn.BatchNorm1d(16)
+        self.conv1 = nn.Conv1d(1,  32, kernel_size=11, padding=5)
+        self.bn1   = nn.BatchNorm1d(32)
         
-        self.conv2 = nn.Conv1d(16, 32, kernel_size=3,  padding=1)
-        self.bn2   = nn.BatchNorm1d(16)
+        self.conv2 = nn.Conv1d(32, 32, kernel_size=3,  padding=1)
+        self.bn2   = nn.BatchNorm1d(32)
         
-        self.conv3 = nn.Conv1d(32, 16, kernel_size=3,  padding=1)
+        self.conv3 = nn.Conv1d(32, 32, kernel_size=3,  padding=1)
         self.bn3   = nn.BatchNorm1d(32)
         
-        self.conv4 = nn.Conv1d(16,  4, kernel_size=3,  padding=1)
+        self.conv4 = nn.Conv1d(32,  4, kernel_size=3,  padding=1)
         self.bn4   = nn.BatchNorm1d(4)
 
 
@@ -88,3 +88,4 @@ class TDNNRaw(nn.Module):
         logits = self.fc(h)               # (B, num_class)
         print(logits.shape)
         return logits
+

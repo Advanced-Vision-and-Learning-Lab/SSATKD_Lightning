@@ -58,14 +58,13 @@ def initialize_model(model_group, mode,student_model,teacher_model, in_channels,
                       hop_length=64, input_feature='STFT', sample_rate=32000, RGB=False,
                       fusion='all', level_num = 4, max_level = 3):
     
-
     
     if model_group == 'Spectogram':
         feature_layer = Feature_Extraction_Layer(input_feature=input_feature, window_length=window_length,  window_size=1024, hop_size=320, 
-        mel_bins=64, fmin=50, fmax=14000, classes_num=527,bn = 80,
+        mel_bins=64, fmin=50, fmax=14000, classes_num=527,bn = 64,
         hop_length=hop_length, sample_rate=sample_rate, RGB = RGB )
 
-        if mode == 'student' or mode == 'distillation':
+        if mode == 'student' or mode == 'distillation' or mode == 'distillation_ft':
                 teacher_model_ft = None
                 if student_model == "TDNN":
         
@@ -92,7 +91,7 @@ def initialize_model(model_group, mode,student_model,teacher_model, in_channels,
                     model_ft.fc = nn.Linear(num_ftrs, num_classes)
         
         
-        if mode == 'teacher' or mode == 'distillation':
+        if mode == 'teacher' or mode == 'distillation' or mode == 'distillation_ft':
                 if mode =='teacher':
                     model_ft =  None
                 if teacher_model == "CNN_14":
@@ -143,8 +142,7 @@ def initialize_model(model_group, mode,student_model,teacher_model, in_channels,
                     feature_layer.bn = nn.BatchNorm2d(teacher_model_ft.bn0.num_features)  
                     num_ftrs_t = teacher_model_ft.fc_audioset.in_features
                     teacher_model_ft.fc_audioset = nn.Linear(num_ftrs_t,num_classes)  
-                    
-                    
+                
                 elif teacher_model == 'WhisperBase':
                     feature_layer = Feature_Extraction_Layer(input_feature=input_feature, window_length=400,  window_size=400, hop_size=160, 
                     mel_bins=80, fmin=0, fmax=8000, classes_num=527,bn = 80,
@@ -157,28 +155,13 @@ def initialize_model(model_group, mode,student_model,teacher_model, in_channels,
                         feature_source="layer2",
                         front_end=None,  
                     )
-                    in_feats = teacher_model_ft.head[2].in_features  # 384
-                    teacher_model_ft.head[2] = nn.Linear(in_feats, num_classes)
-                    
-                    # Freeze everything:
-                    for p in teacher_model_ft.parameters():
-                        p.requires_grad = False
-                    
-                    # Unfreeze head (trainable):
-                    for p in teacher_model_ft.head.parameters():
-                        p.requires_grad = True
-                    
-                    # (Optional) also unfreeze the to80 adaptor if your input channels ≠ 80 or you want it to learn:
-                    for p in teacher_model_ft.to80.parameters():
-                        p.requires_grad = True
-                
-                
-                struct_layer = EDM(in_channels=16,max_level=3,fusion=fusion)
-                stats_layer = QCO_2d(scale=1, level_num=level_num)
-        
+
+        struct_layer = EDM(in_channels=16,max_level=3,fusion=fusion)
+        stats_layer = QCO_2d(scale=1, level_num=level_num)
+    
     elif model_group == 'Wavform':
         feature_layer = nn.Sequential()
-        if mode == 'student' or mode == 'distillation':
+        if mode == 'student' or mode == 'distillation' or mode == 'distillation_ft':
                 teacher_model_ft = None
                 if student_model == "TDNN":
         
@@ -202,26 +185,16 @@ def initialize_model(model_group, mode,student_model,teacher_model, in_channels,
                     else:
                         num_ftrs = model_ft.fc.in_features        
                     model_ft.fc = nn.Linear(num_ftrs, num_classes)
-        if mode == 'teacher' or mode == 'distillation':
+        if mode == 'teacher' or mode == 'distillation' or mode == 'distillation_ft':
             if mode =='teacher':
                     model_ft =  None
             if teacher_model == 'HuBERTBase':
                 teacher_model_ft = HuBERTBaseForClassification(
                     num_classes=num_classes,
                     use_pretrained=use_pretrained,   
-                    freeze_encoder=True,            
+                    freeze_encoder=False,            
                     sample_rate_in=32000            
                 ) 
-                in_feats = teacher_model_ft.head[2].in_features
-                teacher_model_ft.head[2] = nn.Linear(in_feats, num_classes)
-                
-                # ---- Freeze encoder, train only head ----
-                for p in teacher_model_ft.parameters():
-                    p.requires_grad = False
-                for p in teacher_model_ft.head.parameters():
-                    p.requires_grad = True
-                    
-                    
             elif teacher_model == 'Wav2Vec2Base':
                 teacher_model_ft = Wav2Vec2AudioEncoder(
                     num_classes=num_classes,
@@ -229,53 +202,10 @@ def initialize_model(model_group, mode,student_model,teacher_model, in_channels,
                     model_name="facebook/wav2vec2-base",
                     use_pretrained=True,
                     freeze_encoder=True,
-                    feature_source="layer2",  
+                    feature_source="cnn",  
                 )
-
-                in_feats = teacher_model_ft.head[2].in_features  # 768
-                teacher_model_ft.head[2] = nn.Linear(in_feats, num_classes)
-                
-                # freeze everything, unfreeze only head
-                for p in teacher_model_ft.parameters():
-                    p.requires_grad = False
-                for p in teacher_model_ft.head.parameters():
-                    p.requires_grad = True
-        struct_layer = EDM(in_channels=1,max_level=2,fusion=fusion)
+        struct_layer = EDM(in_channels=1,max_level=3,fusion=fusion)
         stats_layer = QCO_2d(scale=1, level_num=level_num)
-    pdb.set_trace()     
-    SSTKAD_Model = SSTKAD(model_group, feature_layer, model_ft, teacher_model_ft, struct_layer, stats_layer)
+    SSTKAD_Model = SSTKAD(mode, model_group, feature_layer, model_ft, teacher_model_ft, struct_layer, stats_layer)
 
     return SSTKAD_Model
-
-
-
-# elif teacher_model == 'HuBERTBase':
-#     # Initialize the model architecture
-#     teacher_model_ft = HuBERTBaseForClassification(
-#         num_classes=num_classes,
-#         use_pretrained=False,      # Set False so it doesn’t try to auto-download
-#         freeze_encoder=True,
-#         sample_rate_in=32000
-#     )
-
-#     # Manually load local weights if available
-#     if use_pretrained:
-#         weight_path = './HuBERT_Weights/hubert-base-custom.pth'  # your local checkpoint
-#         if os.path.exists(weight_path):
-#             print(f"Loading HuBERTBase weights from {weight_path}")
-#             checkpoint = torch.load(weight_path, map_location='cpu')
-
-#             # In case your checkpoint is a dict with a key like 'model' or 'state_dict'
-#             if 'model' in checkpoint:
-#                 checkpoint = checkpoint['model']
-#             elif 'state_dict' in checkpoint:
-#                 checkpoint = checkpoint['state_dict']
-
-#             # Try loading the weights
-#             try:
-#                 teacher_model_ft.load_state_dict(checkpoint, strict=False)
-#                 print("HuBERTBase weights loaded successfully.")
-#             except RuntimeError as e:
-#                 print(f"[Warning] Some keys did not match: {e}")
-#         else:
-#             print(f"[Warning] HuBERTBase checkpoint not found at {weight_path}")

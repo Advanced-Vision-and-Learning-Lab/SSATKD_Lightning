@@ -128,14 +128,19 @@ def main(Params, optimize=False):
 
         if args.mode == 'teacher':
             sub_dir = generate_filename(Params, split)
-            model.remove_PANN_feature_extractor_teacher()
+            if (args.teacher_model == 'CNN_14') or ('ResNet38') or ('MobileNetV1'):
+                # Remove feature extraction layers from PANN
+                model.remove_PANN_feature_extractor()
+
             model_ft = Lightning_Wrapper(
                 nn.Sequential(model.feature_extractor, model.teacher), Params['num_classes'][Dataset], max_iter=len(train_loader),lr=Params['lr'],
                 label_names=Params['class_names'][Dataset], log_dir =filename,
             )
             
-        elif args.mode == 'distillation_full_finetuning':
-            model.remove_PANN_feature_extractor_teacher()
+        elif args.mode == 'distillation_ft':
+            if (args.teacher_model == 'CNN_14') or ('ResNet38') or ('MobileNetV1'):
+                # Remove feature extraction layers from PANN
+                model.remove_PANN_feature_extractor()
             #Fine tune teacher on dataset
             teacher_checkpoint_callback = ModelCheckpoint(filename = 'best_model_teacher',mode='max',
                                                   monitor='val_accuracy')
@@ -172,20 +177,21 @@ def main(Params, optimize=False):
                 strict=False 
             )
 
-
             model.teacher = best_teacher.model[1]
 
         
-            # Remove feature extraction layers from PANN
-            model.remove_PANN_feature_extractor()
+            if (args.teacher_model == 'CNN_14') or ('ResNet38') or ('MobileNetV1'):
+                # Remove feature extraction layers from PANN
+                model.remove_PANN_feature_extractor()
             
             model_ft = Lightning_Wrapper_KD(model, num_classes=Params['num_classes'][Dataset],  max_iter=len(train_loader),lr=Params['lr'],
                                           log_dir = filename, label_names=Params['class_names'][Dataset],
                                           Params=Params,criterion=SSTKAD_Loss(task_num = 4))   
         elif args.mode == 'distillation':
             sub_dir = generate_filename(Params, split)
-            # Remove feature extraction layers from PANN
-            # model.remove_PANN_feature_extractor()
+            if (args.teacher_model == 'CNN_14') or ('ResNet38') or ('MobileNetV1'):
+                # Remove feature extraction layers from PANN
+                model.remove_PANN_feature_extractor()
             
             model_ft = Lightning_Wrapper_KD(model, num_classes=Params['num_classes'][Dataset],  max_iter=len(train_loader),lr=Params['lr'],
                                           log_dir = filename, label_names=Params['class_names'][Dataset],
@@ -203,7 +209,7 @@ def main(Params, optimize=False):
         
         checkpoint_callback = ModelCheckpoint(filename = 'best_model',mode='max',
                                               monitor='train_accuracy')
-                
+
 
 
         # Initialize the trainer with the custom learning rate finder callback
@@ -285,7 +291,7 @@ def parse_args():
     parser.add_argument('--max_level', type=int, default=3, help='Number of decomposition level for the struct module(default: 3)')
     parser.add_argument('--temperature', type=float, default=2.0, help='Temperature for knowledge distillation')
     parser.add_argument('--model_group', type=str, choices=['Spectogram','Wavform'], default='Spectogram', help='Mode to run the script for spectogram or wavform (default: Spectogram)')
-    parser.add_argument('--mode', type=str, choices=['distillation','student', 'teacher'], default='distillation', help='Mode to run the script in: student, teacher, distillation (default: distillation)')
+    parser.add_argument('--mode', type=str, choices=['distillation','student', 'teacher','distillation_ft'], default='student', help='Mode to run the script in: student, teacher, distillation (default: distillation)')
     parser.add_argument('--HPRC', default=False, action=argparse.BooleanOptionalAction,
                     help='Flag to run on HPRC (default: False)')
     args = parser.parse_args()

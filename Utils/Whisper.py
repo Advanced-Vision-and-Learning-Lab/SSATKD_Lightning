@@ -48,9 +48,6 @@ class WhisperEncoderFromSpec(nn.Module):
             nn.Linear(hidden, num_classes)
         )
 
-        # If your mel feature bins != 80, adapt channels with a 1x1 conv (Lazy infers in_channels).
-        self.to80 = nn.LazyConv1d(80, kernel_size=1)  # applied on (B, F, T)
-
         # Optional: force a fixed channels C for feats_4d (not needed usually)
         self.to_fixed_channels = None  # e.g., nn.LazyConv2d(16, kernel_size=1)
 
@@ -116,5 +113,8 @@ class WhisperEncoderFromSpec(nn.Module):
 
         if self.to_fixed_channels is not None:
             feats_4d = self.to_fixed_channels(feats_4d)
+        feats_4d = feats_4d.squeeze(3).unsqueeze(1)
+        feats_4d = feats_4d.repeat(1, 64, 1, 1)
+        
+        return feats_4d, logits
 
-        return feats_4d.squeeze(3).unsqueeze(1), logits

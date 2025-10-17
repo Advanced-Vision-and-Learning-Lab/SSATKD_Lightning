@@ -33,7 +33,7 @@ def Parameters(args):
     # For KTH, currently training on 2 samples, validating on 1 sample, and testing
     # on 1 sample
     data_selection = args.data_selection
-    Dataset_names = {0: 'DeepShip'}
+    Dataset_names = {0: 'DeepShip', 1: 'VTUAD'}
     HPRC = args.HPRC
 
 
@@ -169,11 +169,13 @@ def Parameters(args):
     
     
     #Location of texture datasets
-    Data_dirs = {'DeepShip': './Datasets/DeepShip/'}
+    Data_dirs = {'DeepShip': './Datasets/DeepShip/',
+                 'VTUAD': './Datasets/combined_scenario'}
     segment_length = 5
     sample_rate =32000
     
-    class_names = {'DeepShip':['Cargo', 'Passengership', 'Tanker', 'Tug']}
+    class_names = {'DeepShip':['Cargo', 'Passengership', 'Tanker', 'Tug'],
+                   'VTUAD':['background','cargo','passengership','tanker','tug']}
 
     
     #ResNet models to use for each dataset
@@ -192,23 +194,25 @@ def Parameters(args):
 
     
     #Number of classes in each dataset
-    num_classes = {'DeepShip': 4}
+    num_classes = {'DeepShip': 4,
+                   'VTUAD':5}
     
     #Number of runs and/or splits for each dataset
-    Splits = {'DeepShip':3}
+    Splits = {'DeepShip':3,
+              'VTUAD':3}
     
     #Number of runs and/or splits for each dataset
-    TDNN_feats = {'DeepShip': 1}
-    TDDN_feats_teacher ={'DeepShip': 3}
-    window_length = {'DeepShip': 256
+    TDNN_feats = {'DeepShip': 1, 'VTUAD':1}
+    TDDN_feats_teacher ={'DeepShip': 3, 'VTUAD':3}
+    window_length = {'DeepShip': 256, 'VTUAD':256
         }
-    hop_length = {'DeepShip': 96}
+    hop_length = {'DeepShip': 96,'VTUAD':96}
     
     Dataset = Dataset_names[data_selection]
     data_dir = Data_dirs[Dataset]
     
     #Save results based on features
-    if (Dataset=='DeepShip'):
+    if (Dataset=='DeepShip' or 'VTUAD'):
         audio_features = True
     else:
         audio_features = False

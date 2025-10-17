@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torchaudio
 from transformers import Wav2Vec2Model, Wav2Vec2Config
+import pdb
 
 class Wav2Vec2AudioEncoder(nn.Module):
     """
@@ -79,14 +80,14 @@ class Wav2Vec2AudioEncoder(nn.Module):
     def forward(self, wave: torch.Tensor, lengths: torch.Tensor | None = None):
         """
         wave: (B,T) or (B,1,T) raw waveform in [-1,1]
-        lengths: optional (B,) valid lengths at sample_rate_in (not required)
+        lengths: optional (B,) valid lengths at sample_rate_in
         returns: (feats_4d, logits)
         """
         # Canonicalize & resample
         wave = self._canon_wave(wave)       # (B,T)
         wave16 = self._resample(wave)       # (B,T16)
 
-        # Attention mask (optional)
+        # Attention mask (# Create a 16 kHz-scaled attention mask indicating valid (non-padded) audio regions.)
         attention_mask = None
         if lengths is not None:
             ratio = self.sample_rate_w2v / float(self.sample_rate_in)
@@ -108,16 +109,11 @@ class Wav2Vec2AudioEncoder(nn.Module):
             # out.extract_features: (B, T_c, C_c) in HF
             cnn_seq = out.extract_features     # (B, T_c, C_c)
             feats_4d = cnn_seq.transpose(1, 2).unsqueeze(-1)  # (B, C_c, T_c, 1)
-        elif self.feature_source == "layer2":
-            # hidden_states[0]=conv features before proj, [1]=enc layer1, [2]=enc layer2, ...
-            hs = out.hidden_states or ()
-            layer2 = hs[2] if len(hs) > 2 else seq
-            feats_4d = layer2.transpose(1, 2).unsqueeze(-1)   # (B, H, T', 1)
-        else:  # "last_hidden"
-            feats_4d = seq.transpose(1, 2).unsqueeze(-1)      # (B, H, T', 1)
 
         # Optional channel adapter
         if self.to_fixed_channels is not None:
             feats_4d = self.to_fixed_channels(feats_4d)
+        
         feats_4d = feats_4d.squeeze(3).unsqueeze(1)
         return feats_4d, logits
+

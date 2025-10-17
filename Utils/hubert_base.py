@@ -13,7 +13,8 @@ import pdb
 class HuBERTBaseForClassification(nn.Module):
     """
     Teacher wrapper around HuBERT-Base (768-d hidden).
-    Expects raw waveform input of shape (B, T).
+    Expects raw waveform input of shape (B, T) at sample_rate_in (default 32k).
+    Internally resamples to 16k for HuBERT.
     """
     def __init__(self,
                  num_classes: int,
@@ -24,7 +25,7 @@ class HuBERTBaseForClassification(nn.Module):
 
         self.num_classes = num_classes
         self.sample_rate_in = sample_rate_in
-        self.sample_rate_hubert = 32000
+        self.sample_rate_hubert = 16000
 
         # Resampler
         if self.sample_rate_in != self.sample_rate_hubert:
@@ -55,30 +56,31 @@ class HuBERTBaseForClassification(nn.Module):
     def _resample(self, x):
         return self.resampler(x)
 
-    def forward(self, wave, return_hidden_states: bool = False):
+    def forward(self, wave, return_hidden_states: bool = False, feature_source: str = "layer2"):
         if wave.dim() != 2:
             raise ValueError(f"Expected wave of shape (B, T), got {wave.shape}")
     
         wave16 = self._resample(wave)
-        out = self.encoder(wave16, output_hidden_states=True)  # always get hidden_states
-        feats = out.last_hidden_state           # (B, T', H)
-        pooled = feats.mean(dim=1)              # (B, H)
-        logits = self.head(pooled)              # (B, C)
+        out = self.encoder(wave16, output_hidden_states=True)
     
-        # hidden_states[0]=embeddings, [1]=layer1, [2]=layer2, ...
-        hs = out.hidden_states
-        layer2 = hs[2] if len(hs) > 2 else feats
+        # ---- logits from last hidden ----
+        seq    = out.last_hidden_state              # (B, T', H)
+        pooled = seq.mean(dim=1)                    # (B, H)
+        logits = self.head(pooled)                  # (B, C)
     
-        features = {
-            "pooled": pooled,       # (B, H)
-            "sequence": feats,      # (B, T', H)
-            "layer2": layer2,       # (B, T', H)  <-- what you need
-        }
+        # ---- choose feature source for texture/KD ----
+        if feature_source == "cnn":
+            # CNN (feature extractor) output
+            cnn_seq = out.extract_features          # (B, T_c, C_c)
+            feats_4d = cnn_seq.transpose(1, 2)      # (B, C_c, T_c)
+            feats_4d = feats_4d.unsqueeze(2)        # (B, C_c, 1, T_c)  <-- (B,C,H,W) with H=1
+        elif feature_source == "last_hidden":
+            feats_4d = seq.transpose(1, 2).unsqueeze(2)   # (B, H, 1, T')
+        else:  # "layer2"
+            hs = out.hidden_states or ()
+            layer2 = hs[2] if len(hs) > 2 else seq        # (B, T', H)
+            feats_4d = layer2.transpose(1, 2).unsqueeze(1) # (B, 1, H, T')
         if return_hidden_states:
-            features["hidden_states"] = hs
-        # pdb.set_trace()
-        features = features["layer2"]
-        features = features.transpose(1,2)
-        features = features.unsqueeze(1)
-        
-        return features, logits
+            return feats_4d, logits, out.hidden_states
+        return feats_4d, logits
+

@@ -83,14 +83,13 @@ class EDM(nn.Module):
         for feat in pyr[2:]:
             f = self.ehd_layer(feat)
             f = self.weighted_sum(f)
-            # sizes already match because of padding, but keep it if you want:
             if f.shape[-2:] != (ref_h, ref_w):
                 f = F.pad(f, (0, ref_w - f.shape[-1], 0, ref_h - f.shape[-2]))
             out.append(f)
 
         out = torch.cat(out, dim=1)
 
-        # 4) crop back to original if you need to preserve H0×W0
+        # 4) crop back to original if we need to preserve H0×W0
         if ph or pw:
             out = out[..., :H0, :W0]
 
