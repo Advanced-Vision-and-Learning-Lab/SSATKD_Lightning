@@ -89,10 +89,6 @@ class SSTKAD(nn.Module):
             feats_teacher = self.relu(feats_teacher)
         
         
-        # size = feats_student.shape[-2:]
-        # resize_feats_teacher = PadTo((size[0],size[1]),pad_mode='constant')                                                                     
-        # feats_teacher = resize_feats_teacher(feats_teacher)
-        # --- Spatial align: match both to the smaller H×W (per-dimension) ---
         sH, sW = feats_student.shape[-2], feats_student.shape[-1]
         tH, tW = feats_teacher.shape[-2], feats_teacher.shape[-1]
         
@@ -103,33 +99,12 @@ class SSTKAD(nn.Module):
         if (tH, tW) != (Ht, Wt):
             feats_teacher = F.interpolate(feats_teacher, size=(Ht, Wt), mode="bilinear", align_corners=False)
                                                   
-        # # Get spatial sizes
-        # sH, sW = feats_student.shape[-2:]
-        # tH, tW = feats_teacher.shape[-2:]
-        
-        # # Target = larger per dimension (for padding)
-        # Ht, Wt = max(sH, tH), max(sW, tW)
-        
-        # def pad_reflect(feat, target_h, target_w):
-        #     h, w = feat.shape[-2:]
-        #     pad_h = target_h - h
-        #     pad_w = target_w - w
-        #     # (left, right, top, bottom)
-        #     pad = (pad_w // 2, pad_w - pad_w // 2, pad_h // 2, pad_h - pad_h // 2)
-        #     if pad_h > 0 or pad_w > 0:
-        #         feat = F.pad(feat, pad, mode='reflect')
-        #     return feat
-        
-        # # Apply reflection padding instead of interpolation
-        # feats_student = pad_reflect(feats_student, Ht, Wt)
-        # feats_teacher = pad_reflect(feats_teacher, Ht, Wt)
-        
+       
         struct_feats_student = self.struct_layer(feats_student)
         struct_feats_teacher = self.struct_layer(feats_teacher)
-        # print("\ struct_feats_teacher",struct_feats_teacher[:2, :2, :2, :2])
+
         
         stats_feats_student = self.stats_layer(feats_student)
-        # print("\n stats",stats_feats_student[:2, :2, :2, :2])
         stats_feats_teacher = self.stats_layer(feats_teacher)
 
     
