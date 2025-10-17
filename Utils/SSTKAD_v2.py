@@ -8,9 +8,10 @@ Created on Wed Jun 12 14:19:49 2024
 
 import torch.nn as nn
 from kornia.augmentation import PadTo
+import pdb
 
 class SSTKAD(nn.Module):
-    def __init__(self, feature_extractor, student, teacher, struct_layer, stats_layer):
+    def __init__(self, model_group,feature_extractor, student, teacher, struct_layer, stats_layer):
         super(SSTKAD, self).__init__()
 
         self.student = student
@@ -18,6 +19,7 @@ class SSTKAD(nn.Module):
         self.feature_extractor = feature_extractor
         self.struct_layer = struct_layer
         self.stats_layer = stats_layer
+        self.model_group = model_group
         
         #Freeze teacher network
         # self.set_parameter_requires_grad()
@@ -25,7 +27,7 @@ class SSTKAD(nn.Module):
     
         #TBD, add 1x1 convolution
         #Read channels from second layer of student autonomously
-        self.feature_reduce = nn.Conv2d(64, 16,1)
+        self.feature_reduce = nn.Conv2d(4, 16,1)
         self.relu = nn.ReLU()
         
     def set_parameter_requires_grad(self):
@@ -69,25 +71,38 @@ class SSTKAD(nn.Module):
         self.set_parameter_requires_grad()
 
     def forward(self, x):
-        # pdb.set_trace()
-        
-        #Compute spectrogram features using feature layer
-        x = self.feature_extractor(x)
-        
+        if self.model_group =='Spectogram':
+        # #Compute spectrogram features using feature layer
+            x = self.feature_extractor(x)
         #Compute feature maps and outputs from student and teacher
         feats_student, output_student = self.student(x)
         feats_teacher, output_teacher = self.teacher(x)
         
-        #Match channels and spatial dimension of student and teacher
-        feats_teacher = self.feature_reduce(feats_teacher)
-        feats_teacher = self.relu(feats_teacher)
+        # Extract spatial sizes and channel dims
+        c_s, h_s, w_s = feats_student.shape[1], feats_student.shape[-2], feats_student.shape[-1]
+        c_t, h_t, w_t = feats_teacher.shape[1], feats_teacher.shape[-2], feats_teacher.shape[-1]
         
+        # --- Match channels ---
+        # whichever has higher channels, reduce to smaller
+        target_channels = min(c_s, c_t)
+        if c_t != target_channels:
+            self.feature_reduce_teacher = nn.Conv2d(c_t, target_channels, kernel_size=1).to(feats_teacher.device)
+            feats_teacher = self.feature_reduce_teacher(feats_teacher)
+        if c_s != target_channels:
+            self.feature_reduce_student = nn.Conv2d(c_s, target_channels, kernel_size=1).to(feats_student.device)
+            feats_student = self.feature_reduce_student(feats_student)
         
-        size = feats_student.shape[-2:]
-        resize_feats_teacher = PadTo((size[0],size[1]),pad_mode='constant')                                                                     
-        feats_teacher = resize_feats_teacher(feats_teacher)
-                                                                     
-
+        # --- Match spatial size ---
+        # find smaller spatial resolution
+        target_h = min(h_s, h_t)
+        target_w = min(w_s, w_t)
+        
+        resize_student = PadTo((target_h, target_w), pad_mode='constant')
+        resize_teacher = PadTo((target_h, target_w), pad_mode='constant')
+        
+        feats_student = resize_student(feats_student)
+        feats_teacher = resize_teacher(feats_teacher)
+        # pdb.set_trace()
         
         struct_feats_student = self.struct_layer(feats_student)
         struct_feats_teacher = self.struct_layer(feats_teacher)
@@ -100,5 +115,6 @@ class SSTKAD(nn.Module):
     
         
         return struct_feats_student, struct_feats_teacher, stats_feats_student, stats_feats_teacher, output_student, output_teacher
+
 
      

@@ -11,6 +11,7 @@ import torch
 import torch.types
 import torch.nn as nn
 import matplotlib.pyplot as plt
+import pdb
     
 class EHD_Layer(nn.Module):
     def __init__(self, in_channels, angle_res, normalize_kernel,
@@ -53,11 +54,12 @@ class EHD_Layer(nn.Module):
         self.num_orientations = self.masks.shape[0] // in_channels
     
     def forward(self,x):
+        # pdb.set_trace()
         self.masks = self.masks.to(x.device)
         
         #Treat independently
         x = F.conv2d(x, self.masks,dilation=self.dilation, groups=self.in_channels)
-        
+        # pdb.set_trace()
         
         #Find max response
         if self.aggregation_type == 'max':

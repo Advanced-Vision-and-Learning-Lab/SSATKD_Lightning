@@ -83,3 +83,44 @@ class SSTKAD_Loss(nn.Module):
         
         return total_loss, loss_dict
 
+    # def forward(self, stats_teacher, stats_student, prob_teacher, prob_student, labels):
+        
+   
+    #     # Class loss - cross entrophy
+    #     class_loss = self.classification_loss(prob_student, labels)
+        
+    #     # Statistical loss - 2D EMD loss
+    #     stat_loss = self.stats_loss(stats_teacher, stats_student)
+        
+        
+        
+    #     prob_student = F.softmax(prob_student /self.temperature, dim=-1)
+    #     prob_teacher = F.softmax(prob_teacher /self.temperature, dim=-1)    
+    #     distill_loss = self.distill_loss(prob_student, prob_teacher)
+
+        
+        
+    #     #Ensure losses remain positive to minimize metrics 
+    #     # Adjust losses with dynamic weights based on log variances
+    #     precision_class = torch.exp(-self.log_vars[0])
+    #     class_loss = precision_class * class_loss + (self.log_vars[0])
+        
+    #     precision_stat = torch.exp(-self.log_vars[1])
+    #     stat_loss = precision_stat * stat_loss + (self.log_vars[1])
+
+
+    #     precision_distill = torch.exp(-self.log_vars[3])
+    #     distill_loss = precision_distill * distill_loss + (self.log_vars[3])
+
+
+    #     # Compute total loss
+    #     total_loss = (self.log_vars_flag[0] * class_loss) + (self.log_vars_flag[1] * stat_loss)
+    #     + (self.log_vars_flag[1] * distill_loss)
+        
+    #     loss_dict = {
+    #         'class_loss': class_loss,
+    #         'stat_loss': stat_loss,
+    #         'distill_loss': distill_loss
+    #     }
+        
+    #     return total_loss, loss_dict

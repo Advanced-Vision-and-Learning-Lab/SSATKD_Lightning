@@ -48,6 +48,7 @@ def main(Params, optimize=False):
     numRuns = Params['Splits'][Dataset]
     numBins = Params['numBins']
     num_feature_maps = Params['out_channels'][student_model]
+    model_group = Params['model_group']
     mode = Params['mode']
     feat_map_size = Params['feat_map_size']
 
@@ -55,7 +56,7 @@ def main(Params, optimize=False):
     print('Starting Experiments...')
     best_model_path = ""
     
-    for split in range(0, numRuns):
+    for split in range(0, 2):
         set_seeds(split)
 
         histogram_layer = HistogramLayer(
@@ -103,7 +104,7 @@ def main(Params, optimize=False):
         print("Dataloaders Initialized.")
 
         model = initialize_model(
-            mode, student_model, teacher_model, 
+            model_group, mode, student_model, teacher_model, 
             Params['in_channels'][student_model], num_feature_maps,
             use_pretrained=Params['use_pretrained'],
             num_classes=num_classes,
@@ -133,7 +134,7 @@ def main(Params, optimize=False):
                 label_names=Params['class_names'][Dataset], log_dir =filename,
             )
             
-        elif args.mode == 'distillation':
+        elif args.mode == 'distillation_full_finetuning':
             model.remove_PANN_feature_extractor_teacher()
             #Fine tune teacher on dataset
             teacher_checkpoint_callback = ModelCheckpoint(filename = 'best_model_teacher',mode='max',
@@ -180,7 +181,15 @@ def main(Params, optimize=False):
             
             model_ft = Lightning_Wrapper_KD(model, num_classes=Params['num_classes'][Dataset],  max_iter=len(train_loader),lr=Params['lr'],
                                           log_dir = filename, label_names=Params['class_names'][Dataset],
-                                          Params=Params,criterion=SSTKAD_Loss(task_num = 4))        
+                                          Params=Params,criterion=SSTKAD_Loss(task_num = 4))   
+        elif args.mode == 'distillation':
+            sub_dir = generate_filename(Params, split)
+            # Remove feature extraction layers from PANN
+            # model.remove_PANN_feature_extractor()
+            
+            model_ft = Lightning_Wrapper_KD(model, num_classes=Params['num_classes'][Dataset],  max_iter=len(train_loader),lr=Params['lr'],
+                                          log_dir = filename, label_names=Params['class_names'][Dataset],
+                                          Params=Params,criterion=SSTKAD_Loss(task_num = 4))       
         elif args.mode == 'student':
             sub_dir = generate_filename(Params, split)
             model_ft = Lightning_Wrapper(
@@ -194,12 +203,7 @@ def main(Params, optimize=False):
         
         checkpoint_callback = ModelCheckpoint(filename = 'best_model',mode='max',
                                               monitor='train_accuracy')
-        
-        
-
-
-        num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        print(f"Number of parameters: {num_params}")
+                
 
 
         # Initialize the trainer with the custom learning rate finder callback
@@ -260,18 +264,18 @@ def parse_args():
     parser.add_argument('--save_results', default=True, action=argparse.BooleanOptionalAction, help='Save results of experiments (default: True)')
     parser.add_argument('--folder', type=str, default='Saved_Models/st/', help='Location to save models')
     parser.add_argument('--student_model', type=str, default='TDNN', help='Select baseline model architecture')
-    parser.add_argument('--teacher_model', type=str, default='MobileNetV1', help='Select baseline model architecture')
-    parser.add_argument('--histogram', default=True, action=argparse.BooleanOptionalAction, help='Flag to use histogram model or baseline global average pooling (GAP), --no-histogram (GAP) or --histogram')
+    parser.add_argument('--teacher_model', type=str, default='HuBERTBase', help='Select baseline model architecture')
+    parser.add_argument('--histogram', default=True, action=argparse.BooleanOptionalAction, help='Flag to use histogram model')
     parser.add_argument('--data_selection', type=int, default=0, help='Dataset selection: See Demo_Parameters for full list of datasets')
     parser.add_argument('-numBins', type=int, default=16, help='Number of bins for histogram layer. Recommended values are 4, 8 and 16. (default: 16)')
-    parser.add_argument('--feature_extraction', default=False, action=argparse.BooleanOptionalAction, help='Flag for feature extraction. False, train whole model. True, only update fully connected and histogram layers parameters (default: True)')
-    parser.add_argument('--use_pretrained', default=True, action=argparse.BooleanOptionalAction, help='Flag to use pretrained model from ImageNet or train from scratch (default: True)')
-    parser.add_argument('--train_batch_size', type=int, default=32, help='input batch size for training (default: 128)')
-    parser.add_argument('--val_batch_size', type=int, default=32, help='input batch size for validation (default: 512)')
-    parser.add_argument('--test_batch_size', type=int, default=32, help='input batch size for testing (default: 256)')
+    parser.add_argument('--feature_extraction', default=False, action=argparse.BooleanOptionalAction, help='Flag for feature extraction. False, train whole model')
+    parser.add_argument('--use_pretrained', default=False, action=argparse.BooleanOptionalAction, help='Flag to use pretrained model from ImageNet or train from scratch (default: True)')
+    parser.add_argument('--train_batch_size', type=int, default=4, help='input batch size for training (default: 128)')
+    parser.add_argument('--val_batch_size', type=int, default=4, help='input batch size for validation (default: 512)')
+    parser.add_argument('--test_batch_size', type=int, default=4, help='input batch size for testing (default: 256)')
     parser.add_argument('--num_epochs', type=int, default=1, help='Number of epochs to train each model for (default: 50)')
     parser.add_argument('--resize_size', type=int, default=256, help='Resize the image before center crop. (default: 256)')
-    parser.add_argument('--lr', type=float, default=0.0001, help='learning rate (default: 0.001)')
+    parser.add_argument('--lr', type=float, default=0.001, help='learning rate (default: 0.001)')
     parser.add_argument('--use-cuda', default=True, action=argparse.BooleanOptionalAction, help='enables CUDA training')
     parser.add_argument('--audio_feature', type=str, default='Log_Mel_Spectrogram', help='Audio feature for extraction')
     parser.add_argument('--optimizer', type=str, default='AdamW', help='Select optimizer')
@@ -280,7 +284,8 @@ def parse_args():
     parser.add_argument('--level_num', type=int, default=4, help='Number of quantization level for the stat module(default: 8)')
     parser.add_argument('--max_level', type=int, default=3, help='Number of decomposition level for the struct module(default: 3)')
     parser.add_argument('--temperature', type=float, default=2.0, help='Temperature for knowledge distillation')
-    parser.add_argument('--mode', type=str, choices=['distillation','student', 'teacher'], default='teacher', help='Mode to run the script in: student, teacher, distillation (default: distillation)')
+    parser.add_argument('--model_group', type=str, choices=['Spectogram','Wavform'], default='Wavform', help='Mode to run the script for spectogram or wavform (default: Spectogram)')
+    parser.add_argument('--mode', type=str, choices=['distillation','student', 'teacher'], default='distillation', help='Mode to run the script in: student, teacher, distillation (default: distillation)')
     parser.add_argument('--HPRC', default=False, action=argparse.BooleanOptionalAction,
                     help='Flag to run on HPRC (default: False)')
     args = parser.parse_args()

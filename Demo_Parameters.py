@@ -188,6 +188,7 @@ def Parameters(args):
     patience = args.patience
     temperature = args.temperature
     mode = args.mode
+    model_group = args.model_group
 
     
     #Number of classes in each dataset
@@ -240,6 +241,6 @@ def Parameters(args):
                           'font_size': font_size, 'feature': feature, 
                           'TDNN_feats': TDNN_feats,'TDDN_feats_teacher':TDDN_feats_teacher, 'window_length': window_length, 
                           'hop_length': hop_length,'audio_features': audio_features,
-                          'sample_rate': sample_rate,'patience':patience,'temperature':temperature,'mode':mode}
+                          'sample_rate': sample_rate,'patience':patience,'temperature':temperature,'mode':mode,'model_group':model_group}
     
     return Params

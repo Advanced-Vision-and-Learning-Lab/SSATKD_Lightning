@@ -11,6 +11,19 @@ import torch.nn as nn
 from kornia.geometry.transform import build_laplacian_pyramid
 from Utils.Compute_EHD import EHD_Layer
 from kornia.augmentation import PadTo
+import pdb
+import torch.nn.functional as F
+
+def _pad_for_pyramid(x: torch.Tensor, levels: int):
+    # x: (B,C,H,W); ensure H,W are multiples of 2^(levels-1)
+    H, W = x.shape[-2], x.shape[-1]
+    m = 1 << (levels - 1)          # 2**(levels-1)
+    ph = (m - (H % m)) % m
+    pw = (m - (W % m)) % m
+    if ph or pw:
+        # (left, right, top, bottom) -> pad bottom/right only
+        x = F.pad(x, (0, pw, 0, ph), mode="constant", value=0.0)
+    return x, (ph, pw)
 
 
 class EDM(nn.Module):
@@ -47,33 +60,38 @@ class EDM(nn.Module):
             raise RuntimeError('{} fusion method not implemented'.format(self.fusion))
         
  
-    def forward(self, x):    
-        #Compute laplacian pyramid
-        x = build_laplacian_pyramid(
-            x, max_level=self.max_level, border_type=self.border_type, align_corners=self.align_corners
-        )
-        # Compute EHD response for the first level (x[1])
-        features = self.ehd_layer(x[1])
-        spatial_size = features.shape[-2:]
-        
-    
-        # Initialize the concatenated features with the resized features for x[1]
-        features = [features] 
-        resize_feats = PadTo((spatial_size[0],spatial_size[1]),pad_mode='constant')
-    
-        # Iterate through the pyramid levels starting from x[2]
-        for feature in x[2:]:
-            # Compute edge response
-            feature = self.ehd_layer(feature)
-            
-            # Perform fusion (if needed)
-            feature = self.weighted_sum(feature)
-    
-            # Resize feature to the same size as the spatial size from x[2]
-            feature = resize_feats(feature)
-            features.append(feature)
-    
-        # Concatenate all features along the channel dimension
-        features = torch.cat(features, dim=1)
+    def forward(self, x):
+        B,C,H0,W0 = x.shape
 
-        return features
+        # 1) sanitize & pad for pyramid
+        x = x.float()
+        x = torch.nan_to_num(x, nan=0.0, posinf=1e4, neginf=-1e4)
+        x, (ph, pw) = _pad_for_pyramid(x, self.max_level)
+
+        # 2) build pyramid 
+        pyr = build_laplacian_pyramid(
+            x,
+            max_level=self.max_level,
+            border_type=self.border_type,
+            align_corners=self.align_corners,
+        )
+
+        # 3) EHD per level 
+        features = self.ehd_layer(pyr[1])
+        ref_h, ref_w = features.shape[-2:]
+        out = [features]
+        for feat in pyr[2:]:
+            f = self.ehd_layer(feat)
+            f = self.weighted_sum(f)
+            # sizes already match because of padding, but keep it if you want:
+            if f.shape[-2:] != (ref_h, ref_w):
+                f = F.pad(f, (0, ref_w - f.shape[-1], 0, ref_h - f.shape[-2]))
+            out.append(f)
+
+        out = torch.cat(out, dim=1)
+
+        # 4) crop back to original if you need to preserve H0×W0
+        if ph or pw:
+            out = out[..., :H0, :W0]
+
+        return out

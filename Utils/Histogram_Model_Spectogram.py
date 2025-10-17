@@ -3,16 +3,14 @@ import torch.nn as nn
 import numpy as np
 import torch
 from Utils.TDNN_Model import TDNN
-from Utils.TDNN_Raw import TDNNRaw
-import pdb
 
-class HistRes(nn.Module):
+class HistResSpec(nn.Module):
     
     def __init__(self,histogram_layer, parallel=True,model_name ='resnet18',
                  add_bn=True,scale=5,pretrained=True, TDNN_feats = 1,subband_level=2,device=None,num_class = 4,):
         
         #inherit nn.module
-        super(HistRes,self).__init__()
+        super(HistResSpec,self).__init__()
         self.parallel = parallel
         self.add_bn = add_bn
         self.scale = scale
@@ -24,7 +22,7 @@ class HistRes(nn.Module):
         #Default to use resnet18, otherwise use Resnet50
         #Defines feature extraction backbone model and redefines linear layer        
         if model_name == "TDNN":
-            self.backbone = TDNNRaw(in_channels=TDNN_feats)
+            self.backbone = TDNN(in_channels=TDNN_feats)
             num_ftrs = self.backbone.fc.in_features
             self.dropout = self.backbone.dropout
 
@@ -57,18 +55,17 @@ class HistRes(nn.Module):
 
         #Only use histogram features at end of network       
         if self.model_name == 'TDNN':
-            # pdb.set_trace()
-            x = x.unsqueeze(1)
             x = self.backbone.conv1(x)
             x = self.backbone.nonlinearity(x)
             x = self.backbone.maxpool1(x)
             
             x = self.backbone.conv2(x)
             x = self.backbone.nonlinearity(x)
-            x = self.backbone.maxpool2(x)
-            x2 = self.backbone.maxpool2(x).unsqueeze(1)
-
-            x = self.backbone.conv3(x)
+            x2 = self.backbone.maxpool2(x)
+            # x_cdm = self.custom_cdm_layer(x)
+            # x_dtiem = self.custom_ditm_layer(x)
+            
+            x = self.backbone.conv3(x2)
             x = self.backbone.nonlinearity(x)
             x = self.backbone.maxpool3(x)
             
@@ -92,8 +89,7 @@ class HistRes(nn.Module):
         if(self.parallel):
             if self.add_bn:
                 if self.model_name == 'TDNN':
-                    # x_pool = torch.flatten(x,start_dim=-2)
-                    x_pool = x.squeeze(-1) if x.dim() == 4 else x   # keep (B, C, T)
+                    x_pool = torch.flatten(x,start_dim=-2)
                     x_pool = self.backbone.conv5(x_pool)
                     x_pool = self.backbone.sigmoid(x_pool)
                     x_pool = self.backbone.avgpool(x_pool)
@@ -112,24 +108,7 @@ class HistRes(nn.Module):
                     x_pool = torch.flatten(self.backbone.avgpool(x),start_dim=1)
             # pdb.set_trace()
   
-            # --- Normalize shape for histogram_layer 
-            x_hist_in = x
-            # If (B, C, T) -> (B, C, T, 1)
-            if x_hist_in.dim() == 3:
-                x_hist_in = x_hist_in.unsqueeze(-1)
-            
-            # If channels aren't at dim=1 but H=4, swap (B, 32, 4, T) -> (B, 4, 32, T)
-            if x_hist_in.shape[1] != 4 and x_hist_in.shape[2] == 4:
-                x_hist_in = x_hist_in.transpose(1, 2)
-            
-            # If we still don't have 4 channels, last resort: project to 4 with 1x1 conv
-            if x_hist_in.shape[1] != 4:
-                # define once in __init__: self.hist_ch_adapter = nn.LazyConv2d(4, kernel_size=1, padding=0)
-                x_hist_in = self.hist_ch_adapter(x_hist_in)
-            
-            # Now safe to call histogram_layer
-            x_hist = torch.flatten(self.histogram_layer(x_hist_in), start_dim=1)
-
+            x_hist = torch.flatten(self.histogram_layer(x),start_dim=1)
             x_combine = torch.cat((x_pool,x_hist),dim=1)
             x_combine = self.dropout(x_combine)
             output = self.fc(x_combine)

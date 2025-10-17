@@ -15,7 +15,7 @@ class Transpose(nn.Module):
 
 
 class Feature_Extraction_Layer(nn.Module):
-    def __init__(self, input_feature, window_length, window_size, hop_size, mel_bins, fmin, fmax, classes_num,
+    def __init__(self, input_feature, window_length, window_size, hop_size, mel_bins, fmin, fmax, classes_num, bn,
                  hop_length, sample_rate=8000, RGB=False, downsampling_factor=2, frame_shift=10.0):
         super(Feature_Extraction_Layer, self).__init__()
 
@@ -28,8 +28,8 @@ class Feature_Extraction_Layer(nn.Module):
         ref = 1.0
         amin = 1e-10
         top_db = None
-        self.frame_shift = frame_shift  
-        self.bn = nn.BatchNorm2d(64)
+        self.frame_shift = frame_shift 
+        self.bn = nn.BatchNorm2d(bn)
 
         
         if RGB:
