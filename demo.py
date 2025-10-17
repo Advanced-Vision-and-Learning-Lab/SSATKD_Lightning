@@ -59,7 +59,7 @@ def main(Params, optimize=False):
     print('Starting Experiments...')
     best_model_path = ""
     if Dataset == 'ESC50':
-        splits = list(range(1, 6))  # folds 1..5
+        splits = list(range(1, 6))  
     else:
         splits = list(range(Params['Splits'][Dataset]))
     for split in splits:
@@ -118,7 +118,7 @@ def main(Params, optimize=False):
                 batch_size=Params['batch_size'],
                 sample_rate=Params['sample_rate'],
                 duration_sec=5.0,
-                fold=split,                         # 👈 held-out fold
+                fold=split,                         
                 num_workers=Params['num_workers'],
                 pin_memory=Params['pin_memory'],
                 shuffle=True
@@ -330,7 +330,7 @@ def parse_args():
     parser.add_argument('--max_level', type=int, default=3, help='Number of decomposition level for the struct module(default: 3)')
     parser.add_argument('--temperature', type=float, default=2.0, help='Temperature for knowledge distillation')
     parser.add_argument('--model_group', type=str, choices=['Spectogram','Wavform'], default='Spectogram', help='Mode to run the script for spectogram or wavform (default: Spectogram)')
-    parser.add_argument('--mode', type=str, choices=['distillation','student', 'teacher','distillation_ft'], default='student', help='Mode to run the script in: student, teacher, distillation (default: distillation)')
+    parser.add_argument('--mode', type=str, choices=['distillation','student', 'teacher','distillation_ft'], default='teacher', help='Mode to run the script in: student, teacher, distillation (default: distillation)')
     parser.add_argument('--HPRC', default=False, action=argparse.BooleanOptionalAction,
                     help='Flag to run on HPRC (default: False)')
     args = parser.parse_args()
