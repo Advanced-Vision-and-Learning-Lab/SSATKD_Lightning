@@ -151,7 +151,7 @@ def initialize_model(model_group, mode,student_model,teacher_model, in_channels,
                         num_classes=num_classes,
                         model_name="openai/whisper-base",
                         use_pretrained=use_pretrained,
-                        freeze_encoder=True,
+                        freeze_encoder=False,
                         feature_source="layer2",
                         front_end=None,  
                     )
@@ -201,7 +201,7 @@ def initialize_model(model_group, mode,student_model,teacher_model, in_channels,
                     sample_rate_in=32000,
                     model_name="facebook/wav2vec2-base",
                     use_pretrained=True,
-                    freeze_encoder=True,
+                    freeze_encoder=False,
                     feature_source="cnn",  
                 )
         struct_layer = EDM(in_channels=1,max_level=3,fusion=fusion)
