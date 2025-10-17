@@ -264,7 +264,7 @@ def parse_args():
     parser.add_argument('--save_results', default=True, action=argparse.BooleanOptionalAction, help='Save results of experiments (default: True)')
     parser.add_argument('--folder', type=str, default='Saved_Models/st/', help='Location to save models')
     parser.add_argument('--student_model', type=str, default='TDNN', help='Select baseline model architecture')
-    parser.add_argument('--teacher_model', type=str, default='HuBERTBase', help='Select baseline model architecture')
+    parser.add_argument('--teacher_model', type=str, default='WhisperBase', help='Select baseline model architecture')
     parser.add_argument('--histogram', default=True, action=argparse.BooleanOptionalAction, help='Flag to use histogram model')
     parser.add_argument('--data_selection', type=int, default=0, help='Dataset selection: See Demo_Parameters for full list of datasets')
     parser.add_argument('-numBins', type=int, default=16, help='Number of bins for histogram layer. Recommended values are 4, 8 and 16. (default: 16)')
@@ -284,7 +284,7 @@ def parse_args():
     parser.add_argument('--level_num', type=int, default=4, help='Number of quantization level for the stat module(default: 8)')
     parser.add_argument('--max_level', type=int, default=3, help='Number of decomposition level for the struct module(default: 3)')
     parser.add_argument('--temperature', type=float, default=2.0, help='Temperature for knowledge distillation')
-    parser.add_argument('--model_group', type=str, choices=['Spectogram','Wavform'], default='Wavform', help='Mode to run the script for spectogram or wavform (default: Spectogram)')
+    parser.add_argument('--model_group', type=str, choices=['Spectogram','Wavform'], default='Spectogram', help='Mode to run the script for spectogram or wavform (default: Spectogram)')
     parser.add_argument('--mode', type=str, choices=['distillation','student', 'teacher'], default='distillation', help='Mode to run the script in: student, teacher, distillation (default: distillation)')
     parser.add_argument('--HPRC', default=False, action=argparse.BooleanOptionalAction,
                     help='Flag to run on HPRC (default: False)')

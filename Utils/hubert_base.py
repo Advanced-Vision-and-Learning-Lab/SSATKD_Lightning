@@ -13,8 +13,7 @@ import pdb
 class HuBERTBaseForClassification(nn.Module):
     """
     Teacher wrapper around HuBERT-Base (768-d hidden).
-    Expects raw waveform input of shape (B, T) at sample_rate_in (default 32k).
-    Internally resamples to 16k for HuBERT.
+    Expects raw waveform input of shape (B, T).
     """
     def __init__(self,
                  num_classes: int,
@@ -25,7 +24,7 @@ class HuBERTBaseForClassification(nn.Module):
 
         self.num_classes = num_classes
         self.sample_rate_in = sample_rate_in
-        self.sample_rate_hubert = 16000
+        self.sample_rate_hubert = 32000
 
         # Resampler
         if self.sample_rate_in != self.sample_rate_hubert:
