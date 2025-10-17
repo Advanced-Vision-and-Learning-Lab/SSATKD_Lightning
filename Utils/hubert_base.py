@@ -44,7 +44,7 @@ class HuBERTBaseForClassification(nn.Module):
 
         if freeze_encoder:
             for p in self.encoder.parameters():
-                p.requires_grad = False
+                p.requires_grad = True
 
         hidden = self.encoder.config.hidden_size  # 768 for base
         self.head = nn.Sequential(
@@ -52,6 +52,8 @@ class HuBERTBaseForClassification(nn.Module):
             nn.Dropout(0.1),
             nn.Linear(hidden, num_classes)
         )
+        for p in self.head.parameters():
+            p.requires_grad = True
 
     def _resample(self, x):
         return self.resampler(x)
@@ -83,4 +85,3 @@ class HuBERTBaseForClassification(nn.Module):
         if return_hidden_states:
             return feats_4d, logits, out.hidden_states
         return feats_4d, logits
-

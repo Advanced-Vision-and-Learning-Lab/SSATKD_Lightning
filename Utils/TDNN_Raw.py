@@ -88,4 +88,3 @@ class TDNNRaw(nn.Module):
         logits = self.fc(h)               # (B, num_class)
         print(logits.shape)
         return logits
-

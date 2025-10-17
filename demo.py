@@ -19,6 +19,9 @@ from Utils.Save_Results import generate_filename
 from Utils.Lightning_Wrapper import Lightning_Wrapper, Lightning_Wrapper_KD
 from Utils.Network_functions import initialize_model
 from Datasets.DeepShipDataModules import DeepShipDataModule
+from Datasets.VTUAD_DataModule import VTUADDataModule
+from Datasets.ESC50_DataModule import ESC50DataModule
+from Datasets.UrbanSound8k import UrbanSound8KDataModule
 from Utils.RBFHistogramPooling import HistogramLayer
 from Datasets.Get_preprocessed_data import process_data
 from Utils.Loss_function import SSTKAD_Loss
@@ -55,8 +58,11 @@ def main(Params, optimize=False):
 
     print('Starting Experiments...')
     best_model_path = ""
-    
-    for split in range(0, 2):
+    if Dataset == 'ESC50':
+        splits = list(range(1, 6))  # folds 1..5
+    else:
+        splits = list(range(Params['Splits'][Dataset]))
+    for split in splits:
         set_seeds(split)
 
         histogram_layer = HistogramLayer(
@@ -89,15 +95,48 @@ def main(Params, optimize=False):
                 data_dir, Params['batch_size'],
                 Params['num_workers'], Params['pin_memory']
             )
+        elif Dataset == 'VTUAD':
+            data_dir = "./Datasets/combined_scenario/"
+            data_module = VTUADDataModule(
+                data_dir, Params['batch_size'],
+                Params['num_workers'], Params['pin_memory']
+            )
+        elif Dataset == 'ESC50':
+            data_dir = "./Datasets/ESC50/"
+            pass
         else:
             raise ValueError(f'{Dataset} Dataset not found')
+
             
         print("Preparing data loaders...")
+        
+        if Dataset == 'ESC50':
+            # Each split is a held-out fold
+            data_dir = "./Datasets/ESC-50"
+            data_module = ESC50DataModule(
+                data_dir=data_dir,
+                batch_size=Params['batch_size'],
+                sample_rate=Params['sample_rate'],
+                duration_sec=5.0,
+                fold=split,                         # 👈 held-out fold
+                num_workers=Params['num_workers'],
+                pin_memory=Params['pin_memory'],
+                shuffle=True
+            )
+        else:
+            # data_module already built above for DeepShip / VTUAD
+            pass
+        
         data_module.prepare_data()
         data_module.setup("fit")
         data_module.setup(stage='test')
-        train_loader, val_loader, test_loader = data_module.train_dataloader(), data_module.val_dataloader(), data_module.test_dataloader()
-
+        train_loader, val_loader, test_loader = (
+            data_module.train_dataloader(),
+            data_module.val_dataloader(),
+            data_module.test_dataloader()
+        )
+        
+        print("Dataloaders Initialized.")
 
 
         # print(f"Label distribution in test set: {label_counts}")
@@ -128,7 +167,7 @@ def main(Params, optimize=False):
 
         if args.mode == 'teacher':
             sub_dir = generate_filename(Params, split)
-            if (args.teacher_model == 'CNN_14') or ('ResNet38') or ('MobileNetV1'):
+            if args.teacher_model in {'CNN_14', 'ResNet38', 'MobileNetV1'}:
                 # Remove feature extraction layers from PANN
                 model.remove_PANN_feature_extractor()
 
@@ -138,7 +177,7 @@ def main(Params, optimize=False):
             )
             
         elif args.mode == 'distillation_ft':
-            if (args.teacher_model == 'CNN_14') or ('ResNet38') or ('MobileNetV1'):
+            if args.teacher_model in {'CNN_14', 'ResNet38', 'MobileNetV1'}:
                 # Remove feature extraction layers from PANN
                 model.remove_PANN_feature_extractor()
             #Fine tune teacher on dataset

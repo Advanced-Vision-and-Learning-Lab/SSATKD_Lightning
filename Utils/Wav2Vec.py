@@ -56,6 +56,8 @@ class Wav2Vec2AudioEncoder(nn.Module):
             nn.Dropout(0.1),
             nn.Linear(hidden, num_classes),
         )
+        for p in self.head.parameters():
+            p.requires_grad = True
 
         # Optional adapters if you want to force a fixed channel count for feats_4d
         self.to_fixed_channels = None  # e.g., nn.LazyConv2d(16, 1) if needed later
@@ -116,4 +118,3 @@ class Wav2Vec2AudioEncoder(nn.Module):
         
         feats_4d = feats_4d.squeeze(3).unsqueeze(1)
         return feats_4d, logits
-

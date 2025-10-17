@@ -47,6 +47,8 @@ class WhisperEncoderFromSpec(nn.Module):
             nn.Dropout(0.1),
             nn.Linear(hidden, num_classes)
         )
+        for p in self.head.parameters():
+            p.requires_grad = True
 
         # Optional: force a fixed channels C for feats_4d (not needed usually)
         self.to_fixed_channels = None  # e.g., nn.LazyConv2d(16, kernel_size=1)
@@ -117,4 +119,3 @@ class WhisperEncoderFromSpec(nn.Module):
         feats_4d = feats_4d.repeat(1, 64, 1, 1)
         
         return feats_4d, logits
-

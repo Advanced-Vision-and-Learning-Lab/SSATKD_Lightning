@@ -176,7 +176,6 @@ def Parameters(args):
     
     class_names = {'DeepShip':['Cargo', 'Passengership', 'Tanker', 'Tug'],
                    'VTUAD':['background','cargo','passengership','tanker','tug']}
-
     
     #ResNet models to use for each dataset
     student_model = args.student_model
@@ -212,7 +211,7 @@ def Parameters(args):
     data_dir = Data_dirs[Dataset]
     
     #Save results based on features
-    if (Dataset=='DeepShip' or 'VTUAD'):
+    if (Dataset=='DeepShip'):
         audio_features = True
     else:
         audio_features = False
